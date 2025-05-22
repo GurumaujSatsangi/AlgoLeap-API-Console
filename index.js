@@ -15,7 +15,7 @@ app.listen(3000, () => {
 });
 
 app.get('/home', (req, res) => {
-  res.render('home.ejs');
+  res.render('./home.ejs');
 });
 app.get('/', (req, res) => {
   res.redirect('/home');
