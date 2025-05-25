@@ -224,6 +224,57 @@ await supabase
 });
 
 
+app.post("/text-genai", async (req, res) => {
+
+const {prompt,apiKey} = req.query;
+
+  if (!prompt || !apiKey) {
+    return res.status(400).send("Missing prompt or API key");
+  }
+
+  try {
+    // Check if API key is valid
+    const { data: keys, error: dbError } = await supabase
+      .from("enabled_apis")
+      .select("*")
+      .eq("api_key", apiKey);
+
+
+    if (!keys || keys.length === 0) {
+      return res.status(403).send("API key not found!");
+    }
+
+    else if(keys[0].credits == 0){
+      await supabase
+        .from("enabled_apis")
+        .update({ status: "disabled" })
+        .eq("api_key", apiKey);
+      return res.status(403).send("You have consumed your trial credits, your API key has been disabled.");
+    }
+
+    // Call the AI model
+    const response = await ai.models.generateContent({
+      model: "gemini-2.0-flash",
+      contents: prompt,
+    });
+
+    const textOutput = response.text || response.content || "No response text"; // Adjust as per API structure
+
+res.send(textOutput);
+
+await supabase
+      .from("enabled_apis")
+      .update({ credits: keys[0].credits - 1 })
+      .eq("api_key", apiKey);
+
+  } catch (error) {
+    console.error(error);
+    res.status(500).send("Something went wrong");
+  }
+});
+
+
+
 passport.use(
   "google",
   new GoogleStrategy(
