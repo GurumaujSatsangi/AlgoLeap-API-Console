@@ -58,18 +58,20 @@ app.get("/dashboard", async (req, res) => {
       .eq("uid", req.user.uid);
 
     if (error) {
-      console.error(error);
+      console.error("Supabase error:", error);
       return res.status(500).send("Database error");
     }
 
-    res.render("dashboard.ejs", {
+    res.render("dashboard", {
       user: req.user,
-      enabledApis, // Pass this to your EJS if needed
+      enabledApis,        // ✅ we're using enabledApis here, not data
+      textOutput: null
     });
   } else {
     res.redirect("/");
   }
 });
+
 app.get(
   "/auth/google/dashboard",
   passport.authenticate("google", { failureRedirect: "/",successRedirect: "/dashboard" }),
@@ -89,6 +91,7 @@ app.get(
     res.render("dashboard.ejs", {
       user: req.user,
       enabledApis: data ? [data] : [],
+      textOutput: null, // Initialize textOutput to null
     });
   }
 );
@@ -120,8 +123,9 @@ app.get("/generate-api-key", async (req, res) => {
         {
           uid,
           api_key: generatedApiKey,
-          expiry: new Date(Date.now() + 24 * 60 * 60 * 1000),
+          credits: 5,
           status: "enabled",
+          account_status: "trial",
         },
       ]);
 
@@ -141,6 +145,11 @@ app.get("/generate-api-key", async (req, res) => {
 
 
 app.post("/text", async (req, res) => {
+
+  if (!req.isAuthenticated || !req.isAuthenticated()) {
+    return res.status(401).send("Unauthorized: Please log in first.");
+  }
+  
 const prompt = req.body.prompt;
 const apiKey = await supabase.from("enabled_apis")
   .select("api_key")
@@ -168,7 +177,10 @@ console.log(apiKey);// Use body-parser middleware to parse req.body
       .from("enabled_apis")
       .select("*")
       .eq("api_key", apiKey);
-
+ const { data: enabledApis, error } = await supabase
+      .from("enabled_apis")
+      .select("*")
+      .eq("uid", req.user.uid);
     if (dbError) {
       console.error(dbError);
       return res.status(500).send("Database error");
@@ -177,8 +189,12 @@ console.log(apiKey);// Use body-parser middleware to parse req.body
     if (!keys || keys.length === 0) {
       return res.status(403).send("API key not found!");
     }
-    else if(keys[0].status !== "enabled"){
-      return res.status(403).send("API key has been disabled! Please pay the dues to enable it.");
+    else if(keys[0].credits == 0){
+      await supabase
+        .from("enabled_apis")
+        .update({ status: "disabled" })
+        .eq("api_key", apiKey);
+      return res.status(403).send("You have consumed your trial credits, your API key has been disabled.");
     }
 
     // Call the AI model
@@ -190,7 +206,16 @@ console.log(apiKey);// Use body-parser middleware to parse req.body
     const textOutput = response.text || response.content || "No response text"; // Adjust as per API structure
 
     console.log(textOutput);
-    res.send(textOutput);
+res.render("dashboard.ejs", {
+      user: req.user,
+      enabledApis,
+      textOutput: textOutput, // Pass the text output to the EJS template
+    });
+
+await supabase
+      .from("enabled_apis")
+      .update({ credits: keys[0].credits - 1 })
+      .eq("api_key", apiKey);
 
   } catch (error) {
     console.error(error);
@@ -205,7 +230,7 @@ passport.use(
     {
       clientID: process.env.GOOGLE_CLIENT_ID,
       clientSecret: process.env.GOOGLE_CLIENT_SECRET,
-      callbackURL: "https://algoleap-api-console.onrender.com/auth/google/dashboard",
+      callbackURL: "http://localhost:3000/auth/google/dashboard",
       userProfileURL: "https://www.googleapis.com/oauth2/v3/userinfo",
     },
     async (accessToken, refreshToken, profile, cb) => {

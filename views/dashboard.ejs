@@ -65,9 +65,17 @@
       <%= enabledApis[0].api_key %> 
     </h1>
 <p><span class="badge"><%= enabledApis[0].status %></span>
-<span>Expires on <%= enabledApis[0].expiry %></span></p>
+</p>
   <% } %>
 <br>
+<div class="alert alert-primary" role="alert">
+  Each request to the API will consume credits. Sign up for our Premium plan to get upto 1000 credits.
+</div>
+<div class="form-group">
+    <label><%= textOutput %></label>
+  </div>
+
+
         <div class="access-grid">
           <a data-toggle="collapse" href="#collapsetext" role="button" aria-expanded="false" aria-controls="collapsetext" class="access-card">
             
@@ -97,12 +105,14 @@
 
   <div class="form-group">
     <label for="exampleFormControlTextarea1">Prompt</label>
-    <textarea class="form-control" required id="exampleFormControlTextarea1" name="prompt" rows="3"></textarea>
+    <textarea class="form-control" required id="prompt" name="prompt" rows="3"></textarea>
   </div>
 
   <div class="form-group">
     <input type="submit" class="btn btn-outline-success" value="Generate">
   </div>
+
+
 
 </form>
   </div>
@@ -128,26 +138,11 @@ This is an audio collapsible.  </div>
 const status = document.querySelector('.badge');
 if(status.innerText === 'enabled') {
   status.style.backgroundColor = '#4CAF50';
-} else if (status.innerText === 'disabled') {
+} else if (status.innerText === 'disabled, credits are over!') {
   status.style.backgroundColor = '#f44336';};
 
 </script>
-<script>
 
-//import JQuery from script
-//import swal script
-
-$("#form").on("submit", function(e){
-e.preventDefault();
-
-$.ajax({
-  url: "/add",
-  method: "post"
-}).done(d=>{
-  swal(e.responseJSON);
-});
-})
-</script>
 
     </main>
 
