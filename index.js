@@ -144,87 +144,10 @@ app.get("/generate-api-key", async (req, res) => {
 
 
 
+
+
+
 app.post("/text", async (req, res) => {
-
-  if (!req.isAuthenticated || !req.isAuthenticated()) {
-    return res.status(401).send("Unauthorized: Please log in first.");
-  }
-  
-const prompt = req.body.prompt;
-const apiKey = await supabase.from("enabled_apis")
-  .select("api_key")
-  .eq("uid", req.user.uid)
-  .single()
-  .then(({ data }) => data.api_key)
-  .catch((error) => {
-    console.error(error);
-    return res.status(500).send("Database error");
-  });
-
-  console.log(prompt);
-  console.log(apiKey);
-
-  // const apiKey = req.body.apiKey; // Use body-parser middleware to parse req.body  
-console.log(apiKey);// Use body-parser middleware to parse req.body
-  // Validate inputs
-  if (!prompt || !apiKey) {
-    return res.status(400).send("Missing prompt or API key");
-  }
-
-  try {
-    // Check if API key is valid
-    const { data: keys, error: dbError } = await supabase
-      .from("enabled_apis")
-      .select("*")
-      .eq("api_key", apiKey);
- const { data: enabledApis, error } = await supabase
-      .from("enabled_apis")
-      .select("*")
-      .eq("uid", req.user.uid);
-    if (dbError) {
-      console.error(dbError);
-      return res.status(500).send("Database error");
-    }
-
-    if (!keys || keys.length === 0) {
-      return res.status(403).send("API key not found!");
-    }
-    else if(keys[0].credits == 0){
-      await supabase
-        .from("enabled_apis")
-        .update({ status: "disabled" })
-        .eq("api_key", apiKey);
-      return res.status(403).send("You have consumed your trial credits, your API key has been disabled.");
-    }
-
-    // Call the AI model
-    const response = await ai.models.generateContent({
-      model: "gemini-2.0-flash",
-      contents: prompt,
-    });
-
-    const textOutput = response.text || response.content || "No response text"; // Adjust as per API structure
-
-    console.log(textOutput);
-res.render("dashboard.ejs", {
-      user: req.user,
-      enabledApis,
-      textOutput: textOutput, // Pass the text output to the EJS template
-    });
-
-await supabase
-      .from("enabled_apis")
-      .update({ credits: keys[0].credits - 1 })
-      .eq("api_key", apiKey);
-
-  } catch (error) {
-    console.error(error);
-    res.status(500).send("Something went wrong");
-  }
-});
-
-
-app.post("/text-genai", async (req, res) => {
 
 const {prompt,apiKey} = req.query;
 
