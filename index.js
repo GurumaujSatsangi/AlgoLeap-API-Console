@@ -143,26 +143,30 @@ app.get("/generate-api-key", async (req, res) => {
 
 
 app.post("/image", async (req, res) => {
-
-const {prompt,apiKey} = req.query;
+  const { prompt, apiKey } = req.query;
 
   if (!prompt || !apiKey) {
     return res.status(400).send("Missing prompt or API key");
   }
 
   try {
-    // Check if API key is valid
     const { data: keys, error: dbError } = await supabase
       .from("enabled_apis")
       .select("*")
       .eq("api_key", apiKey);
 
+    if (dbError) {
+      console.error("Supabase error:", dbError);
+      return res.status(500).send("Database error");
+    }
 
     if (!keys || keys.length === 0) {
       return res.status(403).send("API key not found!");
     }
 
-    else if(keys[0].credits == 0){
+    const userKey = keys[0];
+
+    if (userKey.credits <= 0) {
       await supabase
         .from("enabled_apis")
         .update({ status: "disabled" })
@@ -170,32 +174,32 @@ const {prompt,apiKey} = req.query;
       return res.status(403).send("You have consumed your trial credits, your API key has been disabled.");
     }
 
-    const response = await ai.models.generateContent({
-    model: "gemini-2.0-flash-preview-image-generation",
-    contents: contents,
-    config: {
-      responseModalities: [Modality.TEXT, Modality.IMAGE],
-    },
-  });
-  for (const part of response.candidates[0].content.parts) {
-    if (part.text) {
-      console.log(part.text);
-    } else if (part.inlineData) {
-      const imageData = part.inlineData.data;
-      res.send(imageData);
+    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" }); // Replace with actual image model if different
+
+    const result = await model.generateContent({
+      contents: [{ role: "user", parts: [{ text: prompt }] }],
+      generationConfig: { responseMimeType: "image/png" },
+    });
+
+    const response = await result.response;
+    const parts = response.parts;
+
+    const imagePart = parts.find((part) => part.inlineData && part.inlineData.mimeType.startsWith("image/"));
+
+    if (!imagePart) {
+      return res.status(500).send("No image generated");
     }
-  }
 
-    
+    const imageData = imagePart.inlineData.data;
 
-
-await supabase
+    await supabase
       .from("enabled_apis")
-      .update({ credits: keys[0].credits - 1 })
+      .update({ credits: userKey.credits - 1 })
       .eq("api_key", apiKey);
 
+    res.send(imageData);
   } catch (error) {
-    console.error(error);
+    console.error("Error generating image:", error);
     res.status(500).send("Something went wrong");
   }
 });
