@@ -293,7 +293,9 @@ if(prompt.includes("image")){
   return;
 }
 else{
-  res.send("Work is in progress, please try again later.");
+  const textresponse = await axios.post(`https://algoleap-api-console.onrender.com/text?prompt=${prompt}&apiKey=${apiKey}`);
+  res.send(textresponse.data);
+  return;
 }
 
 await supabase
