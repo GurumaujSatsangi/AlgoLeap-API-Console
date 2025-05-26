@@ -13,6 +13,7 @@ import * as fs from "node:fs";
 import path from "path";
 import { fileURLToPath } from "url";
 import axios from "axios";
+import wav from "wav";
 
 const app = express();
 dotenv.config();
@@ -380,6 +381,90 @@ app.get("/logout", (req, res) => {
     }
     res.redirect("/");
   });
+});
+
+app.post("/audio", async (req, res) => {
+const { prompt, apiKey } = req.query;
+
+if (!prompt || !apiKey) {
+    return res.status(400).send("Missing prompt or API key");
+  }
+
+  try {
+    // Check if API key is valid
+    const { data: keys, error: dbError } = await supabase
+      .from("enabled_apis")
+      .select("*")
+      .eq("api_key", apiKey);
+
+
+    if (!keys || keys.length === 0) {
+      return res.status(403).send("API key not found!");
+    }
+
+    else if(keys[0].credits == 0){
+      await supabase
+        .from("enabled_apis")
+        .update({ status: "disabled" })
+        .eq("api_key", apiKey);
+      return res.status(403).send("You have consumed your trial credits, your API key has been disabled.");
+    }
+
+  async function saveWaveFile(
+   filename,
+   pcmData,
+   channels = 1,
+   rate = 24000,
+   sampleWidth = 2,
+) {
+   return new Promise((resolve, reject) => {
+      const writer = new wav.FileWriter(filename, {
+            channels,
+            sampleRate: rate,
+            bitDepth: sampleWidth * 8,
+      });
+
+      writer.on('finish', resolve);
+      writer.on('error', reject);
+
+      writer.write(pcmData);
+      writer.end();
+   });
+}
+
+async function main() {
+   const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+
+   const response = await ai.models.generateContent({
+      model: "gemini-2.5-flash-preview-tts",
+      contents: [{ parts: [{ text: prompt }] }],
+      config: {
+            responseModalities: ['AUDIO'],
+            speechConfig: {
+               voiceConfig: {
+                  prebuiltVoiceConfig: { voiceName: 'Kore' },
+               },
+            },
+      },
+   });
+
+   const data = response.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
+   const audioBuffer = Buffer.from(data, 'base64');
+
+   const fileName = 'out.wav';
+   await saveWaveFile(fileName, audioBuffer);
+}
+await main();
+  await supabase
+      .from("enabled_apis")
+      .update({ credits: keys[0].credits - 1 })
+      .eq("api_key", apiKey);
+
+  } catch (error) {
+    console.error(error);
+    res.status(500).send("Something went wrong");
+  }
+
 });
 
 
