@@ -12,6 +12,7 @@ import { GoogleGenAI,Modality } from "@google/genai";
 import * as fs from "node:fs";
 import path from "path";
 import { fileURLToPath } from "url";
+import axios from "axios";
 
 const app = express();
 dotenv.config();
