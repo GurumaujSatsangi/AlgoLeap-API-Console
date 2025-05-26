@@ -257,6 +257,16 @@ await supabase
   }
 });
 
+app.post("/genai", async (req, res) => { 
+
+const { prompt, apiKey } = req.query;
+if(prompt.includes("image")){
+  const imageresponse = await axios.post(`https://algoleap-api-console.onrender.com/image?prompt=${encodeURIComponent(prompt)}&apiKey=${apiKey}`);
+  res.send(imageresponse.data);
+}
+
+
+});
 
 
 passport.use(
