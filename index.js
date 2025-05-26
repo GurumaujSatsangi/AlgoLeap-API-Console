@@ -142,6 +142,67 @@ app.get("/generate-api-key", async (req, res) => {
 });
 
 
+app.post("/image", async (req, res) => {
+
+const {prompt,apiKey} = req.query;
+
+  if (!prompt || !apiKey) {
+    return res.status(400).send("Missing prompt or API key");
+  }
+
+  try {
+    // Check if API key is valid
+    const { data: keys, error: dbError } = await supabase
+      .from("enabled_apis")
+      .select("*")
+      .eq("api_key", apiKey);
+
+
+    if (!keys || keys.length === 0) {
+      return res.status(403).send("API key not found!");
+    }
+
+    else if(keys[0].credits == 0){
+      await supabase
+        .from("enabled_apis")
+        .update({ status: "disabled" })
+        .eq("api_key", apiKey);
+      return res.status(403).send("You have consumed your trial credits, your API key has been disabled.");
+    }
+
+    const response = await ai.models.generateContent({
+    model: "gemini-2.0-flash-preview-image-generation",
+    contents: contents,
+    config: {
+      responseModalities: [Modality.TEXT, Modality.IMAGE],
+    },
+  });
+  for (const part of response.candidates[0].content.parts) {
+    // Based on the part type, either show the text or save the image
+    if (part.text) {
+      console.log(part.text);
+    } else if (part.inlineData) {
+      const imageData = part.inlineData.data;
+      const buffer = Buffer.from(imageData, "base64");
+      fs.writeFileSync("image.png", buffer);
+      console.log("Image saved as image.png");
+    }
+  }
+
+    
+
+
+await supabase
+      .from("enabled_apis")
+      .update({ credits: keys[0].credits - 1 })
+      .eq("api_key", apiKey);
+
+  } catch (error) {
+    console.error(error);
+    res.status(500).send("Something went wrong");
+  }
+});
+
 
 
 
