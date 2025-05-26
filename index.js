@@ -290,7 +290,12 @@ if (!prompt || !apiKey) {
 
 if(prompt.includes("image")){
   const imageresponse = await axios.post(`https://algoleap-api-console.onrender.com/image?prompt=${prompt}&apiKey=${apiKey}`);
-  res.send(imageresponse.data);
+  res.sendFile("image.png", { root: __dirname });
+  return;
+}
+else if(prompt.includes("audio")){
+  const audioresponse = await axios.post(`https://algoleap-api-console.onrender.com/audio?prompt=${prompt}&apiKey=${apiKey}`);
+  res.sendFile("out.wav", { root: __dirname });
   return;
 }
 else{
