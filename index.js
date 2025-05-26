@@ -8,7 +8,7 @@ import { Strategy as GoogleStrategy } from "passport-google-oauth20";
 import session from "express-session";
 import dotenv from "dotenv";
 import { createClient } from "@supabase/supabase-js";
-import { GoogleGenAI, Modality } from "@google/genai";
+import { GoogleGenAI } from "@google/genai";
 import * as fs from "node:fs";
 
 const app = express();
@@ -31,7 +31,7 @@ const supabase = createClient(
   process.env.SUPABASE_URL,
   process.env.SUPABASE_ANON_KEY
 );
-const ai = new GoogleGenAI({ apiKey: process.env.GOOGLE_API_KEY });
+const ai = new GoogleGenAI(process.env.GOOGLE_API_KEY);
 const port = process.env.PORT || 3000;
 app.use(bodyParser.urlencoded({ extended: true }));
 app.use(bodyParser.json());
@@ -142,67 +142,7 @@ app.get("/generate-api-key", async (req, res) => {
 });
 
 
-app.post("/image", async (req, res) => {
-  const { prompt, apiKey } = req.query;
-
-  if (!prompt || !apiKey) {
-    return res.status(400).send("Missing prompt or API key");
-  }
-
-  try {
-    const { data: keys, error: dbError } = await supabase
-      .from("enabled_apis")
-      .select("*")
-      .eq("api_key", apiKey);
-
-    if (dbError) {
-      console.error("Supabase error:", dbError);
-      return res.status(500).send("Database error");
-    }
-
-    if (!keys || keys.length === 0) {
-      return res.status(403).send("API key not found!");
-    }
-
-    const userKey = keys[0];
-
-    if (userKey.credits <= 0) {
-      await supabase
-        .from("enabled_apis")
-        .update({ status: "disabled" })
-        .eq("api_key", apiKey);
-      return res.status(403).send("You have consumed your trial credits, your API key has been disabled.");
-    }
-
-    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" }); // Replace with actual image model if different
-
-    const result = await model.generateContent({
-      contents: [{ role: "user", parts: [{ text: prompt }] }],
-      generationConfig: { responseMimeType: "image/png" },
-    });
-
-    const response = await result.response;
-    const parts = response.parts;
-
-    const imagePart = parts.find((part) => part.inlineData && part.inlineData.mimeType.startsWith("image/"));
-
-    if (!imagePart) {
-      return res.status(500).send("No image generated");
-    }
-
-    const imageData = imagePart.inlineData.data;
-
-    await supabase
-      .from("enabled_apis")
-      .update({ credits: userKey.credits - 1 })
-      .eq("api_key", apiKey);
-
-    res.send(imageData);
-  } catch (error) {
-    console.error("Error generating image:", error);
-    res.status(500).send("Something went wrong");
-  }
-});
+  
 
 
 
@@ -266,7 +206,7 @@ passport.use(
     {
       clientID: process.env.GOOGLE_CLIENT_ID,
       clientSecret: process.env.GOOGLE_CLIENT_SECRET,
-      callbackURL: "https://algoleap-api-console.onrender.com/auth/google/dashboard",
+      callbackURL: "http://localhost:3000/auth/google/dashboard",
       userProfileURL: "https://www.googleapis.com/oauth2/v3/userinfo",
     },
     async (accessToken, refreshToken, profile, cb) => {

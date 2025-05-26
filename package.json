@@ -12,6 +12,7 @@
   "description": "",
   "dependencies": {
     "@google/genai": "^1.0.1",
+    "@google/generative-ai": "^0.24.1",
     "@supabase/supabase-js": "^2.49.8",
     "body-parser": "^2.2.0",
     "dotenv": "^16.5.0",
@@ -23,6 +24,7 @@
     "passport-google-oauth20": "^2.0.0",
     "passport-local": "^1.0.0",
     "razorpay": "^2.9.6",
-    "supabase": "^2.23.4"
+    "supabase": "^2.23.4",
+    "uuid": "^11.1.0"
   }
 }
