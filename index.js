@@ -211,7 +211,7 @@ app.post("/verify-payment", async (req, res) => {
 });
 
 app.post("/image", async (req, res) => {
-  const { prompt, apiKey } = req.body;
+  const { prompt, apiKey } = req.query;
 
   if (!prompt || !apiKey) {
     return res.status(400).send("Missing prompt or API key");
@@ -270,6 +270,9 @@ app.post("/image", async (req, res) => {
 });
 
 app.post("/text", async (req, res) => {
+    const { prompt, apiKey } = req.query;
+
+
   if (!prompt || !apiKey) {
     return res.status(400).send("Missing prompt or API key");
   }
@@ -468,6 +471,9 @@ async function saveWaveFile(
 }
 
 app.post("/audio", async (req, res) => {
+    const { prompt, apiKey } = req.query;
+
+    
   if (!prompt || !apiKey) {
     return res.status(400).send("Missing prompt or API key");
   }
