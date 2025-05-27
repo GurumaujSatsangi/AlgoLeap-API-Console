@@ -350,17 +350,17 @@ if (!prompt || !apiKey) {
   
 
 if(prompt.includes("image")){
-  const imageresponse = await axios.post(`http://localhost:3000/image?prompt=${prompt}&apiKey=${apiKey}`);
+  const imageresponse = await axios.post(`https://algoleap-api-console.onrender.com/image?prompt=${prompt}&apiKey=${apiKey}`);
   res.sendFile("image.png", { root: __dirname });
   return;
 }
 else if(prompt.includes("audio")){
-  const audioresponse = await axios.post(`http://localhost:3000/audio?prompt=${prompt}&apiKey=${apiKey}`);
+  const audioresponse = await axios.post(`https://algoleap-api-console.onrender.com/audio?prompt=${prompt}&apiKey=${apiKey}`);
   res.send(audioresponse.data);
   return;
 }
 else{
-  const textresponse = await axios.post(`http://localhost:3000/text?prompt=${prompt}&apiKey=${apiKey}`);
+  const textresponse = await axios.post(`https://algoleap-api-console.onrender.com/text?prompt=${prompt}&apiKey=${apiKey}`);
   res.send(textresponse.data);
   return;
 }
@@ -385,7 +385,7 @@ passport.use(
     {
       clientID: process.env.GOOGLE_CLIENT_ID,
       clientSecret: process.env.GOOGLE_CLIENT_SECRET,
-      callbackURL: "http://localhost:3000/auth/google/dashboard",
+      callbackURL: "https://algoleap-api-console.onrender.com/auth/google/dashboard",
       userProfileURL: "https://www.googleapis.com/oauth2/v3/userinfo",
     },
     async (accessToken, refreshToken, profile, cb) => {
