@@ -388,6 +388,28 @@ app.get("/logout", (req, res) => {
   });
 });
 
+  async function saveWaveFile(
+   filename,
+   pcmData,
+   channels = 1,
+   rate = 24000,
+   sampleWidth = 2,
+) {
+   return new Promise((resolve, reject) => {
+      const writer = new wav.FileWriter(filename, {
+            channels,
+            sampleRate: rate,
+            bitDepth: sampleWidth * 8,
+      });
+
+      writer.on('finish', resolve);
+      writer.on('error', reject);
+
+      writer.write(pcmData);
+      writer.end();
+   });
+}
+
 app.post("/audio", async (req, res) => {
 const { prompt, apiKey } = req.query;
 
@@ -415,30 +437,9 @@ if (!prompt || !apiKey) {
       return res.status(403).send("You have consumed your trial credits, your API key has been disabled.");
     }
 
-  async function saveWaveFile(
-   filename,
-   pcmData,
-   channels = 1,
-   rate = 24000,
-   sampleWidth = 2,
-) {
-   return new Promise((resolve, reject) => {
-      const writer = new wav.FileWriter(filename, {
-            channels,
-            sampleRate: rate,
-            bitDepth: sampleWidth * 8,
-      });
 
-      writer.on('finish', resolve);
-      writer.on('error', reject);
 
-      writer.write(pcmData);
-      writer.end();
-   });
-}
-
-async function main() {
-   const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+   const ai = new GoogleGenAI({ apiKey: process.env.GOOGLE_API_KEY });
 
    const response = await ai.models.generateContent({
       model: "gemini-2.5-flash-preview-tts",
@@ -458,8 +459,8 @@ async function main() {
 
    const fileName = 'out.wav';
    await saveWaveFile(fileName, audioBuffer);
-}
-await main();
+   res.sendFile(fileName, { root: __dirname });
+
   await supabase
       .from("enabled_apis")
       .update({ credits: keys[0].credits - 1 })
