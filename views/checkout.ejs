@@ -1,0 +1,40 @@
+<script src="https://checkout.razorpay.com/v1/checkout.js"></script>
+<script>
+  const options = {
+    key: "<%= razorpayKey %>", // Razorpay Key ID from backend
+    amount: "<%= amount %>",   // In paise
+    currency: "<%= currency %>",
+    name: "AlgoLeap API Console",
+    description: "Premium Upgrade",
+    image: "/algoleap.png", // Optional logo
+    order_id: "<%= orderId %>",
+    handler: function (response) {
+      // Send payment_id and order_id to backend for verification
+      fetch("/verify-payment", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          razorpay_payment_id: response.razorpay_payment_id,
+          razorpay_order_id: response.razorpay_order_id,
+          razorpay_signature: response.razorpay_signature,
+        }),
+      }).then(res => res.json())
+        .then(data => {
+          if (data.success) {
+            alert("Payment Successful!");
+            window.location.href = "/dashboard";
+          } else {
+            alert("Payment Verification Failed");
+          }
+        });
+    },
+    theme: {
+      color: "#528FF0",
+    },
+  };
+
+  const rzp = new Razorpay(options);
+  rzp.open();
+</script>

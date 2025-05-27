@@ -146,6 +146,67 @@ app.get("/generate-api-key", async (req, res) => {
   }
 });
 
+app.post('/create-order', async (req, res) => {
+  try {
+    const { data, error } = await supabase
+  .from("enabled_apis")
+  .select("account_status")
+  .eq("uid", req.user.uid)
+  .single();
+
+if (error) {
+  return res.status(500).send("Error checking account status");
+}
+
+if (data?.account_status === "premium plan") {
+  return res.status(403).send("You already have a premium plan.");
+}
+
+    else{
+ const options = {
+      amount: 49900,
+      currency: 'INR',
+      receipt: 'receipt_' + Date.now(),
+      notes: {
+    userId: req.user.uid,
+    email: req.user.email,
+  }
+    };
+
+    const order = await instance.orders.create(options);
+    res.render('checkout', {
+      razorpayKey: process.env.RAZORPAY_KEY_ID,
+      orderId: order.id,
+      amount: options.amount,
+      currency: options.currency,
+    });
+    }
+   
+  } catch (err) {
+    console.error(err);
+    res.status(500).send('Order creation failed');
+  }
+});
+
+
+
+app.post('/verify-payment', async (req, res) => {
+     const { razorpay_order_id, razorpay_payment_id, razorpay_signature } = req.body;
+
+  const hmac = crypto.createHmac('sha256', process.env.RAZORPAY_KEY_SECRET);
+  hmac.update(razorpay_order_id + '|' + razorpay_payment_id);
+  const generated_signature = hmac.digest('hex');
+const payment = await instance.payments.fetch(razorpay_payment_id);
+  if (generated_signature === razorpay_signature) {
+await supabase.from("enabled_apis")
+      .update({ credits:1000, status: "enabled", account_status: "premium plan" })
+      .eq("uid", payment.notes.userId);         
+    return res.json({ success: true });
+  } else {
+    return res.json({ success: false });
+  }
+});
+
   
 app.post("/image", async (req, res) => {
 
@@ -289,17 +350,17 @@ if (!prompt || !apiKey) {
   
 
 if(prompt.includes("image")){
-  const imageresponse = await axios.post(`https://algoleap-api-console.onrender.com/image?prompt=${prompt}&apiKey=${apiKey}`);
+  const imageresponse = await axios.post(`http://localhost:3000/image?prompt=${prompt}&apiKey=${apiKey}`);
   res.sendFile("image.png", { root: __dirname });
   return;
 }
 else if(prompt.includes("audio")){
-  const audioresponse = await axios.post(`https://algoleap-api-console.onrender.com/audio?prompt=${prompt}&apiKey=${apiKey}`);
+  const audioresponse = await axios.post(`http://localhost:3000/audio?prompt=${prompt}&apiKey=${apiKey}`);
   res.send(audioresponse.data);
   return;
 }
 else{
-  const textresponse = await axios.post(`https://algoleap-api-console.onrender.com/text?prompt=${prompt}&apiKey=${apiKey}`);
+  const textresponse = await axios.post(`http://localhost:3000/text?prompt=${prompt}&apiKey=${apiKey}`);
   res.send(textresponse.data);
   return;
 }
@@ -324,7 +385,7 @@ passport.use(
     {
       clientID: process.env.GOOGLE_CLIENT_ID,
       clientSecret: process.env.GOOGLE_CLIENT_SECRET,
-      callbackURL: "https://algoleap-api-console.onrender.com/auth/google/dashboard",
+      callbackURL: "http://localhost:3000/auth/google/dashboard",
       userProfileURL: "https://www.googleapis.com/oauth2/v3/userinfo",
     },
     async (accessToken, refreshToken, profile, cb) => {
