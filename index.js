@@ -11,7 +11,6 @@ import { createClient } from "@supabase/supabase-js";
 import { GoogleGenAI, Modality } from "@google/genai";
 import * as fs from "node:fs";
 import path from "path";
-import fs from "fs";
 import { fileURLToPath } from "url";
 import axios from "axios";
 import wav from "wav";
