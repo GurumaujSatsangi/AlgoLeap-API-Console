@@ -295,7 +295,7 @@ if(prompt.includes("image")){
 }
 else if(prompt.includes("audio")){
   const audioresponse = await axios.post(`https://algoleap-api-console.onrender.com/audio?prompt=${prompt}&apiKey=${apiKey}`);
-  res.sendFile("out.wav", { root: __dirname });
+  res.send(audioresponse.data);
   return;
 }
 else{
