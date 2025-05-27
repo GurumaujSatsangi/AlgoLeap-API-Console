@@ -11,6 +11,7 @@ import { createClient } from "@supabase/supabase-js";
 import { GoogleGenAI, Modality } from "@google/genai";
 import * as fs from "node:fs";
 import path from "path";
+import fs from "fs";
 import { fileURLToPath } from "url";
 import axios from "axios";
 import wav from "wav";
@@ -211,14 +212,13 @@ app.post("/verify-payment", async (req, res) => {
 });
 
 app.post("/image", async (req, res) => {
-  const { prompt, apiKey } = req.query;
+  const { prompt, apiKey } = req.body;
 
   if (!prompt || !apiKey) {
     return res.status(400).send("Missing prompt or API key");
   }
 
   try {
-    // Check if API key is valid
     const { data: keys, error: dbError } = await supabase
       .from("enabled_apis")
       .select("*")
@@ -245,31 +245,32 @@ app.post("/image", async (req, res) => {
         responseModalities: [Modality.TEXT, Modality.IMAGE],
       },
     });
+
     for (const part of response.candidates[0].content.parts) {
-      // Based on the part type, either show the text or save the image
-      if (part.text) {
-        console.log(part.text);
-      } else if (part.inlineData) {
+      if (part.inlineData) {
         const imageData = part.inlineData.data;
         const buffer = Buffer.from(imageData, "base64");
-        fs.writeFileSync("gemini-native-image.png", buffer);
-        res.sendFile("gemini-native-image.png", { root: __dirname });
+
+        res.setHeader("Content-Type", "image/png");
+        res.setHeader("Content-Disposition", "inline; filename=image.png");
+
+        return res.end(buffer);
       }
     }
 
+    res.status(500).send("No image data returned");
+  } catch (error) {
+    console.error(error);
+    res.status(500).send("Something went wrong");
+  } finally {
     await supabase
       .from("enabled_apis")
       .update({ credits: keys[0].credits - 1 })
       .eq("api_key", apiKey);
-  } catch (error) {
-    console.error(error);
-    res.status(500).send("Something went wrong");
   }
 });
 
 app.post("/text", async (req, res) => {
-  const { prompt, apiKey } = req.query;
-
   if (!prompt || !apiKey) {
     return res.status(400).send("Missing prompt or API key");
   }
@@ -349,8 +350,7 @@ app.post("/genai", async (req, res) => {
       );
 
       const imageBuffer = Buffer.from(imageresponse.data, "base64");
-      const fs = require("fs");
-      const path = require("path");
+
       const imagePath = path.join(__dirname, "image.png");
 
       fs.writeFileSync(imagePath, imageBuffer);
@@ -469,8 +469,6 @@ async function saveWaveFile(
 }
 
 app.post("/audio", async (req, res) => {
-  const { prompt, apiKey } = req.query;
-
   if (!prompt || !apiKey) {
     return res.status(400).send("Missing prompt or API key");
   }
