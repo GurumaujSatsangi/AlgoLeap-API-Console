@@ -60,6 +60,7 @@ app.get(
 );
 
 app.get("/dashboard", async (req, res) => {
+  const message = req.query.message || null; // Get message from query params
   if (req.isAuthenticated()) {
     const { data: enabledApis, error } = await supabase
       .from("enabled_apis")
@@ -160,7 +161,7 @@ app.post("/create-order", async (req, res) => {
 res.render("dashboard", {message: "Error fetching account status."});}
 
     if (data?.account_status === "premium plan") {
-res.render("dashboard", { user: req.user, enabledApis: [], message: "You already have a Premium Plan.", textOutput: null });
+res.redirect('/dashboard?message=You already have a Premium Plan.');
 return;
     } else {
       const options = {
