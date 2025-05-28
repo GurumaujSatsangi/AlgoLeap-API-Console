@@ -412,17 +412,19 @@ async function main() {
 
    const data = response.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
    const audioBuffer = Buffer.from(data, 'base64');
-   const uploadResult = await cloudinary.uploader.upload(fileName, {
+   
+    
+   await saveWaveFile(fileName, audioBuffer);
+}
+await main();
+
+const uploadResult = await cloudinary.uploader.upload(fileName, {
       resource_type: 'video', // Cloudinary treats audio files as "video"
       public_id: 'algoleap',
    })
        .catch((error) => {
            console.log(error);
        });
-    
-   await saveWaveFile(fileName, audioBuffer);
-}
-await main();
 
  res.send({
       message: "Audio File Generated Successfully!",
