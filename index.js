@@ -408,6 +408,7 @@ async function main() {
             },
       },
    });
+   const fileName = 'out.wav';
 
    const data = response.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
    const audioBuffer = Buffer.from(data, 'base64');
@@ -419,7 +420,6 @@ async function main() {
            console.log(error);
        });
     
-   const fileName = 'out.wav';
    await saveWaveFile(fileName, audioBuffer);
 }
 await main();
