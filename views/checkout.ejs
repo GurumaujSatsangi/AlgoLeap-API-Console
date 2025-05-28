@@ -82,11 +82,17 @@
         .then((res) => res.json())
         .then((data) => {
           if (data.success) {
-            alert("Payment Successful!");
-            window.location.href = "/dashboard";
+Swal.fire({
+  title: "Payment Successful",
+  text: "Thank you for purchasing the premium plan!",
+  icon: "success"
+});            window.location.href = "/dashboard";
           } else {
-            alert("Payment Verification Failed");
-          }
+Swal.fire({
+  title: "Payment Failed",
+  text: "Your payment could not be verified. Please try again.",
+  icon: "error"
+});            }
         });
     },
     theme: {
