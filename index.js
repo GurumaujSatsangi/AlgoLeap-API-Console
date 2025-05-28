@@ -75,6 +75,7 @@ app.get("/dashboard", async (req, res) => {
       user: req.user,
       enabledApis, // ✅ we're using enabledApis here, not data
       textOutput: null,
+      message: null, // Initialize message to null
     });
   } else {
     res.redirect("/");
@@ -103,6 +104,7 @@ app.get(
       user: req.user,
       enabledApis: data ? [data] : [],
       textOutput: null, // Initialize textOutput to null
+      message: null, // Initialize message to null
     });
   }
 );
@@ -119,11 +121,10 @@ app.get("/generate-api-key", async (req, res) => {
 
     if (selectError) {
       console.error(selectError);
-      return res.send("Database error!");
-    }
+res.render("dashboard", {message: "Error fetching existing API keys."});
 
     if (existingKeys.length > 0) {
-      return res.redirect("/dashboard");
+res.render("dashboard", {message: "You already have an API key."});
     }
 
     const { error: insertError } = await supabase.from("enabled_apis").insert([
@@ -138,11 +139,10 @@ app.get("/generate-api-key", async (req, res) => {
 
     if (insertError) {
       console.error(insertError);
-      return res.send("API key generation failed.");
-    }
+res.render("dashboard", {message: "Error creating API key."});}
 
     return res.redirect("/dashboard");
-  } catch (err) {
+  }} catch (err) {
     console.error(err);
     return res.send("Server error!");
   }
@@ -157,12 +157,10 @@ app.post("/create-order", async (req, res) => {
       .single();
 
     if (error) {
-      return res.status(500).send("Error checking account status");
-    }
+res.render("dashboard", {message: "Error fetching account status."});}
 
     if (data?.account_status === "premium plan") {
-      return res.status(403).send("You already have a premium plan.");
-    } else {
+res.render("dashboard", {message: "You already have a Premium Plan."})    } else {
       const options = {
         amount: 49900,
         currency: "INR",
@@ -183,7 +181,7 @@ app.post("/create-order", async (req, res) => {
     }
   } catch (err) {
     console.error(err);
-    res.status(500).send("Order creation failed");
+res.render("dashboard", {message: "Server error while creating order."});
   }
 });
 
@@ -204,8 +202,7 @@ app.post("/verify-payment", async (req, res) => {
         account_status: "premium plan",
       })
       .eq("uid", payment.notes.userId);
-    return res.json({ success: true });
-  } else {
+res.render("dashboard",{message:"Payment Succesful! Thank you for purchasing the Premium Plan."});} else {
     return res.json({ success: false });
   }
 });
