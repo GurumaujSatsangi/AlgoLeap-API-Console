@@ -493,6 +493,11 @@ passport.serializeUser((user, cb) => {
 passport.deserializeUser((user, cb) => {
   cb(null, user);
 });
+
+app.get('/audio', (req, res) => {
+   const filePath = path.join(__dirname, 'out.wav');
+   res.sendFile(filePath);
+});
 app.get("/logout", (req, res) => {
   req.logout(function (err) {
     if (err) {
