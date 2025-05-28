@@ -360,20 +360,18 @@ const imageBuffer = Buffer.from(imageresponse.data);
   return;
     } else if (prompt.includes("audio")) {
   const audioresponse = await axios.post(
-    `https://algoleap-api-console.onrender.com/audio?prompt=${prompt}&apiKey=${apiKey}`,
-    {}, // empty request body
-    { responseType: "arraybuffer" } // tell axios to expect binary data
+    `https://algoleap-api-console.onrender.com/audio?prompt=${encodeURIComponent(prompt)}&apiKey=${apiKey}`,
+    null, // ⬅️ Explicitly no request body
+    {
+      responseType: "arraybuffer", // ⬅️ Critical for binary data
+    }
   );
 
-  // Optional: Save to disk (if needed)
-  const audioBuffer = Buffer.from(audioresponse.data);
-  const audioPath = path.join(__dirname, "out.wav");
-  fs.writeFileSync(audioPath, audioBuffer);
-
-  // Send the file to the client
-  res.sendFile("out.wav", { root: __dirname });
+  res.setHeader("Content-Type", "audio/wav");
+  res.send(audioresponse.data); // stream the audio to the user
   return;
 }
+
 else {
       const textresponse = await axios.post(
         `https://algoleap-api-console.onrender.com/text?prompt=${prompt}&apiKey=${apiKey}`
