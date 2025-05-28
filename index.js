@@ -161,6 +161,7 @@ res.render("dashboard", {message: "Error fetching account status."});}
 
     if (data?.account_status === "premium plan") {
 res.render("dashboard", { user: req.user, enabledApis: [], message: "You already have a Premium Plan.", textOutput: null });
+return;
     } else {
       const options = {
         amount: 49900,
