@@ -252,6 +252,11 @@ app.post("/image", async (req, res) => {
         const imageData = part.inlineData.data;
         const buffer = Buffer.from(imageData, "base64");
 
+        await supabase
+      .from("enabled_apis")
+      .update({ credits: keys[0].credits - 1 })
+      .eq("api_key", apiKey);
+
         res.setHeader("Content-Type", "image/png");
         res.setHeader("Content-Disposition", "inline; filename=image.png");
 
@@ -264,10 +269,7 @@ app.post("/image", async (req, res) => {
     console.error(error);
     res.status(500).send("Something went wrong");
   } 
-    await supabase
-      .from("enabled_apis")
-      .update({ credits: keys[0].credits - 1 })
-      .eq("api_key", apiKey);
+    
   
 });
 
@@ -488,12 +490,11 @@ app.post("/audio", async (req, res) => {
       return res.status(403).send("You have consumed your trial credits.");
     }
 
-    // ✅ Correct usage of elevenLabs
-    const audioStream = await elevenLabs.textToSpeech.convert("JBFqnCBsd6RMkjVDRZzb", {
-      output_format: "mp3_44100_128",
-      text: prompt,
-      model_id: "eleven_multilingual_v2",
-    });
+   await client.textToSpeech.convert("JBFqnCBsd6RMkjVDRZzb", {
+    output_format: "mp3_44100_128",
+    text: "The first move is what sets everything in motion.",
+    model_id: "eleven_multilingual_v2"
+});
 
     // ✅ Stream audio to response
     res.setHeader("Content-Type", "audio/mpeg");
