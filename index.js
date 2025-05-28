@@ -1,6 +1,7 @@
 import express from "express";
 import bodyParser from "body-parser";
 import passport from "passport";
+import { v2 as cloudinary } from 'cloudinary';
 import crypto from "crypto";
 import Razorpay from "razorpay";
 import { v4 as uuidv4 } from "uuid";
@@ -26,7 +27,11 @@ const instance = new Razorpay({
   key_id: process.env.RAZORPAY_KEY_ID,
   key_secret: process.env.RAZORPAY_KEY_SECRET,
 });
-
+cloudinary.config({
+  cloud_name: process.env.CLOUD_NAME,
+  api_key: process.env.CLOUDINARY_API_KEY,
+  api_secret: process.env.CLOUDINARY_API_SECRET,
+});
 app.use(
   session({
     secret: process.env.SESSION_SECRET || "your_secret_key",
@@ -406,14 +411,23 @@ async function main() {
 
    const data = response.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
    const audioBuffer = Buffer.from(data, 'base64');
-
+   const uploadResult = await cloudinary.uploader.upload(fileName, {
+      resource_type: 'video', // Cloudinary treats audio files as "video"
+      public_id: 'algoleap',
+   })
+       .catch((error) => {
+           console.log(error);
+       });
+    
    const fileName = 'out.wav';
    await saveWaveFile(fileName, audioBuffer);
 }
 await main();
 
-res.send("Audio File Generated Succesfully!");
-      return;
+ res.send({
+      message: "Audio File Generated Successfully!",
+      fileUrl: uploadResult?.secure_url
+   });      return;
 
 
 
