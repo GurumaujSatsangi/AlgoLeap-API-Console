@@ -78,13 +78,15 @@
 
         <% } else { %>
         <h1 class="onhover_api"><%= enabledApis[0].api_key %></h1>
-        <p><span class="badge"><%= enabledApis[0].status %></span></p>
+        <p><span class="badge"><%= enabledApis[0].status %></span>
+              <span class="badge"><%= enabledApis[0].account_status %></span>
+
+        </p>
         <% } %>
         <br />
         <div class="alert alert-primary" role="alert">
-          Each request to the API will consume credits. Sign up for our Premium
-          plan to get upto 1000 credits.
-          <br />
+          Each request to the API will consume credits.
+          <br /><br>
           <span
             ><form action="/create-order" method="POST">
               <input

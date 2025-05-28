@@ -203,8 +203,9 @@ app.post("/verify-payment", async (req, res) => {
         account_status: "premium plan",
       })
       .eq("uid", payment.notes.userId);
-res.redirect("/dashboard?message=Payment Succesful! Thank you for purchasing the Premium Plan");
-    return res.json({ success: false });
+res.redirect("/dashboard?message=Payment Succesful! Thank you for purchasing the Premium Plan");}
+else{
+    res.redirect("/dashboard?message=Payment Failed! Please try again.");
   }
 });
 
