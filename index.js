@@ -567,21 +567,6 @@ app.post("/audio", async (req, res) => {
   }
 });
 
-
-app.get("/checkout", (req, res) => {
-  if (!req.isAuthenticated()) {
-    return res.redirect("/");
-  }
-
-  res.render("checkout", {
-    user: req.user,
-    enabledApis: data ? [data] : [],
-    razorpayKey: process.env.RAZORPAY_KEY_ID,
-    orderId: null,
-    amount: null,
-    currency: "INR",
-  });
-});
 app.listen(port, () => {
   console.log(`Server running on port ${port}`);
 });
