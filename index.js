@@ -260,12 +260,12 @@ app.post("/image", async (req, res) => {
   } catch (error) {
     console.error(error);
     res.status(500).send("Something went wrong");
-  } finally {
+  } 
     await supabase
       .from("enabled_apis")
       .update({ credits: keys[0].credits - 1 })
       .eq("api_key", apiKey);
-  }
+  
 });
 
 app.post("/text", async (req, res) => {
@@ -347,17 +347,17 @@ app.post("/genai", async (req, res) => {
 
     if (prompt.includes("image")) {
       const imageresponse = await axios.post(
-        `https://algoleap-api-console.onrender.com/image?prompt=${prompt}&apiKey=${apiKey}`
+        `https://algoleap-api-console.onrender.com/image?prompt=${prompt}&apiKey=${apiKey}`, {},   { responseType: "arraybuffer" } // <- critical
+
       );
+const imageBuffer = Buffer.from(imageresponse.data);
 
-      const imageBuffer = Buffer.from(imageresponse.data, "base64");
+  const imagePath = path.join(__dirname, "image.png");
 
-      const imagePath = path.join(__dirname, "image.png");
+  fs.writeFileSync(imagePath, imageBuffer);
 
-      fs.writeFileSync(imagePath, imageBuffer);
-
-      res.sendFile("image.png", { root: __dirname });
-      return;
+  res.sendFile("image.png", { root: __dirname });
+  return;
     } else if (prompt.includes("audio")) {
       const audioresponse = await axios.post(
         `https://algoleap-api-console.onrender.com/audio?prompt=${prompt}&apiKey=${apiKey}`
