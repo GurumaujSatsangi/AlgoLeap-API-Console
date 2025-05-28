@@ -359,12 +359,22 @@ const imageBuffer = Buffer.from(imageresponse.data);
   res.sendFile("image.png", { root: __dirname });
   return;
     } else if (prompt.includes("audio")) {
-      const audioresponse = await axios.post(
-        `https://algoleap-api-console.onrender.com/audio?prompt=${prompt}&apiKey=${apiKey}`
-      );
-      res.send(audioresponse.data);
-      return;
-    } else {
+  const audioresponse = await axios.post(
+    `https://algoleap-api-console.onrender.com/audio?prompt=${prompt}&apiKey=${apiKey}`,
+    {}, // empty request body
+    { responseType: "arraybuffer" } // tell axios to expect binary data
+  );
+
+  // Optional: Save to disk (if needed)
+  const audioBuffer = Buffer.from(audioresponse.data);
+  const audioPath = path.join(__dirname, "out.wav");
+  fs.writeFileSync(audioPath, audioBuffer);
+
+  // Send the file to the client
+  res.sendFile("out.wav", { root: __dirname });
+  return;
+}
+else {
       const textresponse = await axios.post(
         `https://algoleap-api-console.onrender.com/text?prompt=${prompt}&apiKey=${apiKey}`
       );
@@ -447,27 +457,7 @@ app.get("/logout", (req, res) => {
   });
 });
 
-async function saveWaveFile(
-  filename,
-  pcmData,
-  channels = 1,
-  rate = 24000,
-  sampleWidth = 2
-) {
-  return new Promise((resolve, reject) => {
-    const writer = new wav.FileWriter(filename, {
-      channels,
-      sampleRate: rate,
-      bitDepth: sampleWidth * 8,
-    });
 
-    writer.on("finish", resolve);
-    writer.on("error", reject);
-
-    writer.write(pcmData);
-    writer.end();
-  });
-}
 
 app.post("/audio", async (req, res) => {
     const { prompt, apiKey } = req.query;
