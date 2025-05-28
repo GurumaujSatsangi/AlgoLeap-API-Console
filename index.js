@@ -124,7 +124,7 @@ app.get("/generate-api-key", async (req, res) => {
 res.render("dashboard", {message: "Error fetching existing API keys."});
 
     if (existingKeys.length > 0) {
-res.render("dashboard", {message: "You already have an API key."});
+res.render("dashboard", { user: req.user, enabledApis: [], message: "You already have an API key.", textOutput: null });
     }
 
     const { error: insertError } = await supabase.from("enabled_apis").insert([
@@ -160,7 +160,8 @@ app.post("/create-order", async (req, res) => {
 res.render("dashboard", {message: "Error fetching account status."});}
 
     if (data?.account_status === "premium plan") {
-res.render("dashboard", {message: "You already have a Premium Plan."})    } else {
+res.render("dashboard", { user: req.user, enabledApis: [], message: "You already have a Premium Plan.", textOutput: null });
+    } else {
       const options = {
         amount: 49900,
         currency: "INR",
