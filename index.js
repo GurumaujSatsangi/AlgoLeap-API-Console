@@ -76,7 +76,7 @@ app.get("/dashboard", async (req, res) => {
       user: req.user,
       enabledApis, // ✅ we're using enabledApis here, not data
       textOutput: null,
-      message: null, // Initialize message to null
+      message, // Initialize message to null
     });
   } else {
     res.redirect("/");
@@ -105,7 +105,7 @@ app.get(
       user: req.user,
       enabledApis: data ? [data] : [],
       textOutput: null, // Initialize textOutput to null
-      message: null, // Initialize message to null
+      message, // Initialize message to null
     });
   }
 );
@@ -122,11 +122,10 @@ app.get("/generate-api-key", async (req, res) => {
 
     if (selectError) {
       console.error(selectError);
-res.render("dashboard", {message: "Error fetching existing API keys."});
+res.redirect("/dashboard?message=Error fetching existing API keys.");   };
 
     if (existingKeys.length > 0) {
-res.render("dashboard", { user: req.user, enabledApis: [], message: "You already have an API key.", textOutput: null });
-    }
+res.redirect("/dashboard?message=You already have an API Key.");     }
 
     const { error: insertError } = await supabase.from("enabled_apis").insert([
       {
@@ -143,7 +142,7 @@ res.render("dashboard", { user: req.user, enabledApis: [], message: "You already
 res.render("dashboard", {message: "Error creating API key."});}
 
     return res.redirect("/dashboard");
-  }} catch (err) {
+  } catch (err) {
     console.error(err);
     return res.send("Server error!");
   }
@@ -184,8 +183,7 @@ return;
     }
   } catch (err) {
     console.error(err);
-res.render("dashboard", {message: "Server error while creating order."});
-  }
+res.redirect('/dashboard?message=Error creating order.');}
 });
 
 app.post("/verify-payment", async (req, res) => {
@@ -205,7 +203,7 @@ app.post("/verify-payment", async (req, res) => {
         account_status: "premium plan",
       })
       .eq("uid", payment.notes.userId);
-res.render("dashboard",{message:"Payment Succesful! Thank you for purchasing the Premium Plan."});} else {
+res.redirect("/dashboard?message=Payment Succesful! Thank you for purchasing the Premium Plan");
     return res.json({ success: false });
   }
 });
