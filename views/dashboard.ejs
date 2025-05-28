@@ -108,9 +108,16 @@
       </script>
     </main>
  <% if (message) { %>
-    <script>
-Swal.fire(message);    </script>
-  <% } %>
+  <script>
+    Swal.fire({
+      title: 'Alert',
+      text: '<%= message %>',
+      icon: 'info',
+      confirmButtonText: 'OK'
+    });
+  </script>
+<% } %>
+
     <script src="/script.js"></script>
   </body>
 </html>
