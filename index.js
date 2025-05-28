@@ -14,7 +14,7 @@ import path from "path";
 import { fileURLToPath } from "url";
 import axios from "axios";
 import wav from "wav";
-import { ElevenLabsClient } from "elevenlabs";
+import { ElevenLabsClient, play } from "elevenlabs";
 
 const app = express();
 dotenv.config();
@@ -44,6 +44,8 @@ app.use(bodyParser.urlencoded({ extended: true }));
 app.use(bodyParser.json());
 app.use(express.static("public"));
 app.set("view engine", "ejs");
+app.use('/static', express.static(path.join(__dirname, 'public')));
+
 app.set("views", path.join(__dirname, "views"));
 app.use(passport.initialize());
 app.use(passport.session());
@@ -364,18 +366,58 @@ const imageBuffer = Buffer.from(imageresponse.data);
   res.sendFile("image.png", { root: __dirname });
   return;
     } else if (prompt.includes("audio")) {
-  const audioresponse = await axios.post(
-    `https://algoleap-api-console.onrender.com/audio?prompt=${prompt}&apiKey=${apiKey}`,
-    null, // ⬅️ Explicitly no request body
-    {
-      responseType: "arraybuffer", // ⬅️ Critical for binary data
-    }
-  );
 
-  res.setHeader("Content-Type", "audio/wav");
-  res.send(audioresponse.data); // stream the audio to the user
-  return;
+async function saveWaveFile(
+   filename,
+   pcmData,
+   channels = 1,
+   rate = 24000,
+   sampleWidth = 2,
+) {
+   return new Promise((resolve, reject) => {
+      const writer = new wav.FileWriter(filename, {
+            channels,
+            sampleRate: rate,
+            bitDepth: sampleWidth * 8,
+      });
+
+      writer.on('finish', resolve);
+      writer.on('error', reject);
+
+      writer.write(pcmData);
+      writer.end();
+   });
 }
+
+async function main() {
+
+   const response = await ai.models.generateContent({
+      model: "gemini-2.5-flash-preview-tts",
+      contents: [{ parts: [{ text: prompt }] }],
+      config: {
+            responseModalities: ['AUDIO'],
+            speechConfig: {
+               voiceConfig: {
+                  prebuiltVoiceConfig: { voiceName: 'Kore' },
+               },
+            },
+      },
+   });
+
+   const data = response.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
+   const audioBuffer = Buffer.from(data, 'base64');
+
+   const fileName = 'out.wav';
+   await saveWaveFile(fileName, audioBuffer);
+}
+await main();
+
+res.send("Audio File Generated Succesfully!");
+      return;
+
+
+
+    }
 
 else {
       const textresponse = await axios.post(
