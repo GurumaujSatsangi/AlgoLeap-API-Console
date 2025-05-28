@@ -14,9 +14,12 @@ import path from "path";
 import { fileURLToPath } from "url";
 import axios from "axios";
 import wav from "wav";
+import { ElevenLabsClient } from "elevenlabs";
 
 const app = express();
 dotenv.config();
+
+const elevenLabs = new ElevenLabsClient({apiKey:process.env.ELEVENLABS_API_KEY});
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const instance = new Razorpay({
@@ -360,7 +363,7 @@ const imageBuffer = Buffer.from(imageresponse.data);
   return;
     } else if (prompt.includes("audio")) {
   const audioresponse = await axios.post(
-    `https://algoleap-api-console.onrender.com/audio?prompt=${encodeURIComponent(prompt)}&apiKey=${apiKey}`,
+    `https://algoleap-api-console.onrender.com/audio?prompt=${prompt}&apiKey=${apiKey}`,
     null, // ⬅️ Explicitly no request body
     {
       responseType: "arraybuffer", // ⬅️ Critical for binary data
@@ -458,9 +461,8 @@ app.get("/logout", (req, res) => {
 
 
 app.post("/audio", async (req, res) => {
-    const { prompt, apiKey } = req.query;
+  const { prompt, apiKey } = req.query;
 
-    
   if (!prompt || !apiKey) {
     return res.status(400).send("Missing prompt or API key");
   }
@@ -483,76 +485,31 @@ app.post("/audio", async (req, res) => {
         .from("enabled_apis")
         .update({ status: "disabled" })
         .eq("api_key", apiKey);
-      return res
-        .status(403)
-        .send(
-          "You have consumed your trial credits, your API key has been disabled."
-        );
+      return res.status(403).send("You have consumed your trial credits.");
     }
 
-    async function saveWaveFile(
-      filename,
-      pcmData,
-      channels = 1,
-      rate = 24000,
-      sampleWidth = 2
-    ) {
-      return new Promise((resolve, reject) => {
-        const writer = new wav.FileWriter(filename, {
-          channels,
-          sampleRate: rate,
-          bitDepth: sampleWidth * 8,
-        });
+    // ✅ Correct usage of elevenLabs
+    const audioStream = await elevenLabs.textToSpeech.convert("JBFqnCBsd6RMkjVDRZzb", {
+      output_format: "mp3_44100_128",
+      text: prompt,
+      model_id: "eleven_multilingual_v2",
+    });
 
-        writer.on("finish", resolve);
-        writer.on("error", reject);
+    // ✅ Stream audio to response
+    res.setHeader("Content-Type", "audio/mpeg");
+    audioStream.pipe(res); // Stream it directly
 
-        writer.write(pcmData);
-        writer.end();
-      });
-    }
-
-    async function main() {
-      console.log("Calling Gemini API");
-      const ai = new GoogleGenAI({ apiKey: process.env.GOOGLE_API_KEY });
-
-      const response = await ai.models.generateContent({
-        model: "gemini-2.5-flash-preview-tts",
-        contents: [{ parts: [{ text: prompt }] }],
-        config: {
-          responseModalities: ["AUDIO"],
-          speechConfig: {
-            voiceConfig: {
-              prebuiltVoiceConfig: { voiceName: "Kore" },
-            },
-          },
-        },
-      });
-
-      console.log("Gemini API response received");
-
-      const data =
-        response?.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
-      if (!data) throw new Error("No audio data returned from Gemini");
-
-      const audioBuffer = Buffer.from(data, "base64");
-      const fileName = "out.wav";
-      await saveWaveFile(fileName, audioBuffer);
-      console.log("Audio saved, sending file...");
-      res.sendFile(fileName, { root: __dirname });
-    }
-
-    await main();
-
+    // ✅ Deduct credits
     await supabase
       .from("enabled_apis")
       .update({ credits: keys[0].credits - 1 })
       .eq("api_key", apiKey);
   } catch (error) {
-    console.error("🔥 ERROR:", error);
+    console.error("🔥 AUDIO GENERATION ERROR:", error);
     res.status(500).send("Something went wrong");
   }
 });
+
 
 app.listen(port, () => {
   console.log(`Server running on port ${port}`);
