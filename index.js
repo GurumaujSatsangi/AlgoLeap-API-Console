@@ -418,7 +418,7 @@ async function main() {
 }
 await main();
 
-const uploadResult = await cloudinary.uploader.upload(fileName, {
+const uploadResult = await cloudinary.uploader.upload("out.wav", {
       resource_type: 'video', // Cloudinary treats audio files as "video"
       public_id: 'algoleap',
    })
