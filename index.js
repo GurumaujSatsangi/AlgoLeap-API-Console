@@ -393,6 +393,7 @@ async function saveWaveFile(
       writer.end();
    });
 }
+   const fileName = crypto.randomUUID();
 
 async function main() {
 
@@ -408,7 +409,7 @@ async function main() {
             },
       },
    });
-   const fileName = 'out.wav';
+   console.log(fileName);
 
    const data = response.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
    const audioBuffer = Buffer.from(data, 'base64');
@@ -418,9 +419,9 @@ async function main() {
 }
 await main();
 
-const uploadResult = await cloudinary.uploader.upload("out.wav", {
+const uploadResult = await cloudinary.uploader.upload(fileName, {
       resource_type: 'video', // Cloudinary treats audio files as "video"
-      public_id: 'algoleap',
+      public_id: fileName,
    })
        .catch((error) => {
            console.log(error);
@@ -510,10 +511,7 @@ passport.deserializeUser((user, cb) => {
   cb(null, user);
 });
 
-app.get('/audio', (req, res) => {
-   const filePath = path.join(__dirname, 'out.wav');
-   res.sendFile(filePath);
-});
+
 app.get("/logout", (req, res) => {
   req.logout(function (err) {
     if (err) {
@@ -522,58 +520,6 @@ app.get("/logout", (req, res) => {
     res.redirect("/");
   });
 });
-
-
-
-app.post("/audio", async (req, res) => {
-  const { prompt, apiKey } = req.query;
-
-  if (!prompt || !apiKey) {
-    return res.status(400).send("Missing prompt or API key");
-  }
-
-  try {
-    console.log("Checking API key:", apiKey);
-    const { data: keys, error: dbError } = await supabase
-      .from("enabled_apis")
-      .select("*")
-      .eq("api_key", apiKey);
-
-    if (dbError) throw dbError;
-
-    if (!keys || keys.length === 0) {
-      return res.status(403).send("API key not found!");
-    }
-
-    if (keys[0].credits == 0) {
-      await supabase
-        .from("enabled_apis")
-        .update({ status: "disabled" })
-        .eq("api_key", apiKey);
-      return res.status(403).send("You have consumed your trial credits.");
-    }
-
-   await client.textToSpeech.convert("JBFqnCBsd6RMkjVDRZzb", {
-    output_format: "mp3_44100_128",
-    text: "The first move is what sets everything in motion.",
-    model_id: "eleven_multilingual_v2"
-});
-
-    // ✅ Stream audio to response
-    res.setHeader("Content-Type", "audio/mpeg");
-    audioStream.pipe(res); // Stream it directly
-
-    // ✅ Deduct credits
-    await supabase
-      .from("enabled_apis")
-      .update({ credits: keys[0].credits - 1 })
-      .eq("api_key", apiKey);
-  } catch (error) {
-    console.error("🔥 AUDIO GENERATION ERROR:", error);
-    res.status(500).send("Something went wrong");
-  }
-});
-
 
 app.listen(port, () => {
   console.log(`Server running on port ${port}`);
