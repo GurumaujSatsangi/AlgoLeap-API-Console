@@ -1,7 +1,7 @@
 import express from "express";
 import bodyParser from "body-parser";
 import passport from "passport";
-import { v2 as cloudinary } from 'cloudinary';
+import { v2 as cloudinary } from "cloudinary";
 import crypto from "crypto";
 import Razorpay from "razorpay";
 import { v4 as uuidv4 } from "uuid";
@@ -20,7 +20,9 @@ import { ElevenLabsClient, play } from "elevenlabs";
 const app = express();
 dotenv.config();
 
-const elevenLabs = new ElevenLabsClient({apiKey:process.env.ELEVENLABS_API_KEY});
+const elevenLabs = new ElevenLabsClient({
+  apiKey: process.env.ELEVENLABS_API_KEY,
+});
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const instance = new Razorpay({
@@ -49,7 +51,7 @@ app.use(bodyParser.urlencoded({ extended: true }));
 app.use(bodyParser.json());
 app.use(express.static("public"));
 app.set("view engine", "ejs");
-app.use('/static', express.static(path.join(__dirname, 'public')));
+app.use("/static", express.static(path.join(__dirname, "public")));
 
 app.set("views", path.join(__dirname, "views"));
 app.use(passport.initialize());
@@ -132,10 +134,12 @@ app.get("/generate-api-key", async (req, res) => {
 
     if (selectError) {
       console.error(selectError);
-res.redirect("/dashboard?message=Error fetching existing API keys.");   };
+      res.redirect("/dashboard?message=Error fetching existing API keys.");
+    }
 
     if (existingKeys.length > 0) {
-res.redirect("/dashboard?message=You already have an API Key.");     }
+      res.redirect("/dashboard?message=You already have an API Key.");
+    }
 
     const { error: insertError } = await supabase.from("enabled_apis").insert([
       {
@@ -149,7 +153,8 @@ res.redirect("/dashboard?message=You already have an API Key.");     }
 
     if (insertError) {
       console.error(insertError);
-res.render("dashboard", {message: "Error creating API key."});}
+      res.render("dashboard", { message: "Error creating API key." });
+    }
 
     return res.redirect("/dashboard");
   } catch (err) {
@@ -167,11 +172,12 @@ app.post("/create-order", async (req, res) => {
       .single();
 
     if (error) {
-res.render("dashboard", {message: "Error fetching account status."});}
+      res.render("dashboard", { message: "Error fetching account status." });
+    }
 
     if (data?.account_status === "premium plan") {
-res.redirect('/dashboard?message=You already have a Premium Plan.');
-return;
+      res.redirect("/dashboard?message=You already have a Premium Plan.");
+      return;
     } else {
       const options = {
         amount: 49900,
@@ -193,7 +199,8 @@ return;
     }
   } catch (err) {
     console.error(err);
-res.redirect('/dashboard?message=Error creating order.');}
+    res.redirect("/dashboard?message=Error creating order.");
+  }
 });
 
 app.post("/verify-payment", async (req, res) => {
@@ -213,9 +220,9 @@ app.post("/verify-payment", async (req, res) => {
         account_status: "premium plan",
       })
       .eq("uid", payment.notes.userId);
-res.json({ success: true});}
-      else{
-res.json({ success: false});
+    res.json({ success: true });
+  } else {
+    res.json({ success: false });
   }
 });
 
@@ -260,9 +267,9 @@ app.post("/image", async (req, res) => {
         const buffer = Buffer.from(imageData, "base64");
 
         await supabase
-      .from("enabled_apis")
-      .update({ credits: keys[0].credits - 1 })
-      .eq("api_key", apiKey);
+          .from("enabled_apis")
+          .update({ credits: keys[0].credits - 1 })
+          .eq("api_key", apiKey);
 
         res.setHeader("Content-Type", "image/png");
         res.setHeader("Content-Disposition", "inline; filename=image.png");
@@ -275,14 +282,11 @@ app.post("/image", async (req, res) => {
   } catch (error) {
     console.error(error);
     res.status(500).send("Something went wrong");
-  } 
-    
-  
+  }
 });
 
 app.post("/text", async (req, res) => {
-    const { prompt, apiKey } = req.query;
-
+  const { prompt, apiKey } = req.query;
 
   if (!prompt || !apiKey) {
     return res.status(400).send("Missing prompt or API key");
@@ -323,6 +327,15 @@ app.post("/text", async (req, res) => {
       .from("enabled_apis")
       .update({ credits: keys[0].credits - 1 })
       .eq("api_key", apiKey);
+
+    await supabase.from("prompt_history").insert({
+      uid: req.user.uid,
+      api_key: apiKey,
+
+      type: "text",
+      prompt: prompt,
+      resonse: textOutput || "",
+    });
   } catch (error) {
     console.error(error);
     res.status(500).send("Something went wrong");
@@ -359,84 +372,111 @@ app.post("/genai", async (req, res) => {
 
     if (prompt.includes("image")) {
       const imageresponse = await axios.post(
-        `https://algoleap-api-console.onrender.com/image?prompt=${prompt}&apiKey=${apiKey}`, {},   { responseType: "arraybuffer" } // <- critical
-
+        `https://algoleap-api-console.onrender.com/image?prompt=${prompt}&apiKey=${apiKey}`,
+        {},
+        { responseType: "arraybuffer" } // <- critical
       );
-const imageBuffer = Buffer.from(imageresponse.data);
+      const imageBuffer = Buffer.from(imageresponse.data);
 
-  const imagePath = path.join(__dirname, "image.png");
+      const imagePath = path.join(__dirname, "image.png");
 
-  fs.writeFileSync(imagePath, imageBuffer);
+      fs.writeFileSync(imagePath, imageBuffer);
 
-  res.sendFile("image.png", { root: __dirname });
-  return;
+      res.sendFile("image.png", { root: __dirname });
+      const fileName = crypto.randomUUID();
+      const uploadResult = await cloudinary.uploader
+        .upload(fileName, {
+          resource_type: "image", // Cloudinary treats audio files as "video"
+          public_id: fileName,
+        })
+        .catch((error) => {
+          console.log(error);
+        });
+      await supabase.from("prompt_history").insert({
+        uid: req.user.uid,
+        api_key: apiKey,
+
+        type: "image",
+        prompt: prompt,
+        resonse: uploadResult?.secure_url || "",
+      });
+
+      return;
     } else if (prompt.includes("audio")) {
-
-async function saveWaveFile(
-   filename,
-   pcmData,
-   channels = 1,
-   rate = 24000,
-   sampleWidth = 2,
-) {
-   return new Promise((resolve, reject) => {
-      const writer = new wav.FileWriter(filename, {
+      async function saveWaveFile(
+        filename,
+        pcmData,
+        channels = 1,
+        rate = 24000,
+        sampleWidth = 2
+      ) {
+        return new Promise((resolve, reject) => {
+          const writer = new wav.FileWriter(filename, {
             channels,
             sampleRate: rate,
             bitDepth: sampleWidth * 8,
+          });
+
+          writer.on("finish", resolve);
+          writer.on("error", reject);
+
+          writer.write(pcmData);
+          writer.end();
+        });
+      }
+      const fileName = crypto.randomUUID();
+
+      async function main() {
+        const response = await ai.models.generateContent({
+          model: "gemini-2.5-flash-preview-tts",
+          contents: [{ parts: [{ text: prompt }] }],
+          config: {
+            responseModalities: ["AUDIO"],
+            speechConfig: {
+              voiceConfig: {
+                prebuiltVoiceConfig: { voiceName: "Kore" },
+              },
+            },
+          },
+        });
+        console.log(fileName);
+
+        const data =
+          response.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
+        const audioBuffer = Buffer.from(data, "base64");
+
+        await saveWaveFile(fileName, audioBuffer);
+      }
+      await main();
+
+      const uploadResult = await cloudinary.uploader
+        .upload(fileName, {
+          resource_type: "video", // Cloudinary treats audio files as "video"
+          public_id: fileName,
+        })
+        .catch((error) => {
+          console.log(error);
+        });
+      await supabase.from("prompt_history").insert({
+        uid: req.user.uid,
+        api_key: apiKey,
+
+        type: "audio",
+        prompt: prompt,
+        resonse: uploadResult?.secure_url || "",
       });
 
-      writer.on('finish', resolve);
-      writer.on('error', reject);
+      res.send({
+        message: "Audio File Generated Successfully!",
+        fileUrl: uploadResult?.secure_url,
+      });
+      return;
 
-      writer.write(pcmData);
-      writer.end();
-   });
-}
-   const fileName = crypto.randomUUID();
-
-async function main() {
-
-   const response = await ai.models.generateContent({
-      model: "gemini-2.5-flash-preview-tts",
-      contents: [{ parts: [{ text: prompt }] }],
-      config: {
-            responseModalities: ['AUDIO'],
-            speechConfig: {
-               voiceConfig: {
-                  prebuiltVoiceConfig: { voiceName: 'Kore' },
-               },
-            },
-      },
-   });
-   console.log(fileName);
-
-   const data = response.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
-   const audioBuffer = Buffer.from(data, 'base64');
-   
-    
-   await saveWaveFile(fileName, audioBuffer);
-}
-await main();
-
-const uploadResult = await cloudinary.uploader.upload(fileName, {
-      resource_type: 'video', // Cloudinary treats audio files as "video"
-      public_id: fileName,
-   })
-       .catch((error) => {
-           console.log(error);
-       });
-
- res.send({
-      message: "Audio File Generated Successfully!",
-      fileUrl: uploadResult?.secure_url
-   });      return;
-
-
-
-    }
-
-else {
+      await supabase
+        .from("enabled_apis")
+        .update({ credits: keys[0].credits - 1 })
+        .eq("api_key", apiKey);
+    } else {
       const textresponse = await axios.post(
         `https://algoleap-api-console.onrender.com/text?prompt=${prompt}&apiKey=${apiKey}`
       );
@@ -510,7 +550,6 @@ passport.serializeUser((user, cb) => {
 passport.deserializeUser((user, cb) => {
   cb(null, user);
 });
-
 
 app.get("/logout", (req, res) => {
   req.logout(function (err) {
