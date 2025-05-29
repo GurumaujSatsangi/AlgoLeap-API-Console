@@ -83,8 +83,7 @@
 
         </p>
         <% } %>
-        <br />
-        <div class="alert alert-primary" role="alert">
+<hr>        <div class="alert alert-primary" role="alert">
           Each request to the API will consume credits.
           <br /><br>
           <span
@@ -97,7 +96,22 @@
           ></span>
         </div>
 
-        <div class="access-grid"></div>
+<hr>
+<table class="table table-striped">
+ 
+  <tbody>
+    <tr>
+     
+      <td><span class="badge-method">POST</span></td>
+      <td>/genai?apiKey=<span class="onhover_api"><%= enabledApis[0].api_key %></span>&prompt={YOUR_PROMPT}</td>
+    </tr>
+   
+  </tbody>
+</table>
+<hr>
+        <h2>My Prompt History</h2>
+
+
       </div>
 
       <script>

@@ -329,12 +329,11 @@ app.post("/text", async (req, res) => {
       .eq("api_key", apiKey);
 
     await supabase.from("prompt_history").insert({
-      uid: req.user.uid,
       api_key: apiKey,
 
       type: "text",
       prompt: prompt,
-      resonse: textOutput || "",
+      response: textOutput || "",
     });
   } catch (error) {
     console.error(error);
@@ -372,18 +371,20 @@ app.post("/genai", async (req, res) => {
 
     if (prompt.includes("image")) {
       const imageresponse = await axios.post(
-        `https://algoleap-api-console.onrender.com/image?prompt=${prompt}&apiKey=${apiKey}`,
+        `http://localhost:3000/image?prompt=${prompt}&apiKey=${apiKey}`,
         {},
         { responseType: "arraybuffer" } // <- critical
       );
+      const fileName = `${crypto.randomUUID()}.png`;
+
       const imageBuffer = Buffer.from(imageresponse.data);
 
-      const imagePath = path.join(__dirname, "image.png");
+      const imagePath = path.join(__dirname, fileName);
 
       fs.writeFileSync(imagePath, imageBuffer);
 
-      res.sendFile("image.png", { root: __dirname });
-      const fileName = crypto.randomUUID();
+      res.sendFile(fileName, { root: __dirname });
+
       const uploadResult = await cloudinary.uploader
         .upload(fileName, {
           resource_type: "image", // Cloudinary treats audio files as "video"
@@ -393,12 +394,11 @@ app.post("/genai", async (req, res) => {
           console.log(error);
         });
       await supabase.from("prompt_history").insert({
-        uid: req.user.uid,
         api_key: apiKey,
 
         type: "image",
         prompt: prompt,
-        resonse: uploadResult?.secure_url || "",
+        response: uploadResult?.secure_url || "",
       });
 
       return;
@@ -424,7 +424,7 @@ app.post("/genai", async (req, res) => {
           writer.end();
         });
       }
-      const fileName = crypto.randomUUID();
+const fileName = `${crypto.randomUUID()}.wav`;
 
       async function main() {
         const response = await ai.models.generateContent({
@@ -439,7 +439,6 @@ app.post("/genai", async (req, res) => {
             },
           },
         });
-        console.log(fileName);
 
         const data =
           response.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
@@ -458,27 +457,26 @@ app.post("/genai", async (req, res) => {
           console.log(error);
         });
       await supabase.from("prompt_history").insert({
-        uid: req.user.uid,
         api_key: apiKey,
-
         type: "audio",
         prompt: prompt,
-        resonse: uploadResult?.secure_url || "",
+        response: uploadResult?.secure_url || "",
       });
 
       res.send({
         message: "Audio File Generated Successfully!",
         fileUrl: uploadResult?.secure_url,
       });
-      return;
-
-      await supabase
+       await supabase
         .from("enabled_apis")
         .update({ credits: keys[0].credits - 1 })
         .eq("api_key", apiKey);
+      return;
+
+     
     } else {
       const textresponse = await axios.post(
-        `https://algoleap-api-console.onrender.com/text?prompt=${prompt}&apiKey=${apiKey}`
+        `http://localhost:3000/text?prompt=${prompt}&apiKey=${apiKey}`
       );
       res.send(textresponse.data);
       return;
@@ -496,7 +494,7 @@ passport.use(
       clientID: process.env.GOOGLE_CLIENT_ID,
       clientSecret: process.env.GOOGLE_CLIENT_SECRET,
       callbackURL:
-        "https://algoleap-api-console.onrender.com/auth/google/dashboard",
+        "http://localhost:3000/auth/google/dashboard",
       userProfileURL: "https://www.googleapis.com/oauth2/v3/userinfo",
     },
     async (accessToken, refreshToken, profile, cb) => {
