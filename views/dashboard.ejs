@@ -103,18 +103,122 @@
     <tr>
      
       <td><span class="badge-method">POST</span></td>
-      <td>/genai?apiKey=<span class="onhover_api"><%= enabledApis[0].api_key %></span>&prompt={YOUR_PROMPT}</td>
+      <td>/genai?apiKey={YOUR_API_KEY}&prompt={YOUR_PROMPT}</td>
     </tr>
    
   </tbody>
 </table>
 <hr>
-        <h2>My Prompt History</h2>
 
+<div class="accordion" id="accordionExample">
+  <div class="card">
+    <div class="card-header" id="headingOne">
+      <h5 class="mb-0">
+        <button class="btn btn-link" type="button" data-toggle="collapse" data-target="#collapseOne" aria-expanded="true" aria-controls="collapseOne">
+        Hit History
+        </button>
+      </h5>
+    </div>
+
+    <div id="collapseOne" class="collapse" aria-labelledby="headingOne" data-parent="#accordionExample">
+      <div class="card-body">
+        <% if (!enabledApis || enabledApis.length === 0) { %>
+        <h1>No Hit History Found</h1>
+        <% } else { %>
+        <table border="1" class="table table-striped">
+          <thead>
+            <tr>
+              <th>Response Type</th>
+              <th>Prompt</th>
+              <th>Response</th>
+            </tr>
+          </thead>
+          <tbody>
+            <% history.forEach(history => { %>
+            <tr>
+              <td><%= history.type %></td>
+              <td><%= history.prompt %></td>
+              <td class="response"><%= history.response %></td>
+            </tr>
+            <% }); %>
+          </tbody>
+        </table>
+        <% } %>
+      </div>
+    </div>
+  </div>
+  <div class="card">
+    <div class="card-header" id="headingTwo">
+      <h5 class="mb-0">
+        <button class="btn btn-link collapsed" type="button" data-toggle="collapse" data-target="#collapseTwo" aria-expanded="false" aria-controls="collapseTwo">
+Transaction History        </button>
+      </h5>
+    </div>
+    <div id="collapseTwo" class="collapse" aria-labelledby="headingTwo" data-parent="#accordionExample">
+      <div class="card-body">
+       <% if (!transaction || transaction.length === 0) { %>
+        <h1>No Transaction History Found</h1>
+        <% } else { %>
+        <table border="1" class="table table-striped">
+          <thead>
+            <tr>
+              <th>Payment ID</th>
+              <th>Timestamp</th>
+              <th>Payment Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            <% transaction.forEach(transaction => { %>
+            <tr>
+              <td><%= transaction.transaction_id %></td>
+              <td class="timestamp"><%= transaction.timestamp %></td>
+              <td><%= transaction.transaction_status %></td>
+            </tr>
+            <% }); %>
+          </tbody>
+        </table>
+        <% } %>
+      </div>
+    </div>
+  </div>
+  
+</div>
+
+ 
 
       </div>
 
       <script>
+const timestamps = document.querySelectorAll(".timestamp");
+  timestamps.forEach(item => {
+    const date = new Date(item.innerText);
+    const options = { 
+  year: "numeric", 
+  month: "long", 
+  day: "numeric", 
+  hour: "2-digit", 
+  minute: "2-digit", 
+  second: "2-digit" ,
+  timeZoneName: "short",
+  timeZone: "Asia/Kolkata"
+};
+    item.innerText = date.toLocaleString("en-US", {
+  timeZone: "Asia/Kolkata"
+});
+  });
+
+
+
+        const responses = document.querySelectorAll(".response");
+
+  responses.forEach(item => {
+    const text = item.innerText;
+    if (text.includes("https://res.cloudinary.com/prarthana")) {
+      item.innerHTML = `<a href="${text}" target="_blank">View Response</a>`;
+    } else {
+      item.innerHTML = text;
+    }
+  });
         const status = document.querySelector(".badge");
         if (status.innerText === "enabled") {
           status.style.backgroundColor = "#4CAF50";

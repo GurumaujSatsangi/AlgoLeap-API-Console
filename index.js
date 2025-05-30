@@ -15,14 +15,11 @@ import path from "path";
 import { fileURLToPath } from "url";
 import axios from "axios";
 import wav from "wav";
-import { ElevenLabsClient, play } from "elevenlabs";
-
+import { Readable } from "node:stream";
 const app = express();
 dotenv.config();
 
-const elevenLabs = new ElevenLabsClient({
-  apiKey: process.env.ELEVENLABS_API_KEY,
-});
+
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const instance = new Razorpay({
@@ -84,11 +81,23 @@ app.get("/dashboard", async (req, res) => {
       return res.status(500).send("Database error");
     }
 
+      const { data: history, history_error } = await supabase
+      .from("prompt_history")
+      .select("*")
+      .eq("api_key", enabledApis[0]?.api_key)
+
+       const { data: transaction,transaction_error } = await supabase
+      .from("transaction_history")
+      .select("*")
+      .eq("uid", req.user.uid)
+
     res.render("dashboard", {
       user: req.user,
       enabledApis, // ✅ we're using enabledApis here, not data
       textOutput: null,
-      message, // Initialize message to null
+      message,
+      history,
+      transaction, // Initialize message to null
     });
   } else {
     res.redirect("/");
@@ -106,8 +115,18 @@ app.get(
       .from("enabled_apis")
       .select("*")
       .eq("uid", req.user.uid)
-      .single(); // since only 1 key per user
+      .single(); 
+      
+      
+      const { data: history, history_error } = await supabase
+      .from("prompt_history")
+      .select("*")
+      .eq("api_key", enabledApis[0]?.api_key);
 
+       const { data: transaction,transaction_error } = await supabase
+      .from("transaction_history")
+      .select("*")
+      .eq("uid", req.user.uid)
     if (error && error.code !== "PGRST116") {
       console.error(error);
       return res.send("Database error!");
@@ -117,7 +136,9 @@ app.get(
       user: req.user,
       enabledApis: data ? [data] : [],
       textOutput: null, // Initialize textOutput to null
-      message, // Initialize message to null
+      message,
+      history, 
+      transaction,// Initialize message to null
     });
   }
 );
@@ -220,6 +241,14 @@ app.post("/verify-payment", async (req, res) => {
         account_status: "premium plan",
       })
       .eq("uid", payment.notes.userId);
+
+      await supabase.from("transaction_history").insert({
+        transaction_id: razorpay_payment_id,
+
+        uid: payment.notes.userId,
+        timestamp: new Date().toISOString(),
+        transaction_status: payment.status,
+      });
     res.json({ success: true });
   } else {
     res.json({ success: false });
@@ -474,7 +503,11 @@ const fileName = `${crypto.randomUUID()}.wav`;
       return;
 
      
-    } else {
+    } 
+    
+    
+    
+    else {
       const textresponse = await axios.post(
         `https://algoleap-api-console.onrender.com/text?prompt=${prompt}&apiKey=${apiKey}`
       );
@@ -557,6 +590,95 @@ app.get("/logout", (req, res) => {
     res.redirect("/");
   });
 });
+
+app.post("/video", async (req, res) => {
+  // const { prompt, apiKey } = req.query;
+
+  // if (!prompt || !apiKey) {
+  //   return res.status(400).send("Missing prompt or API key");
+  // }
+
+  // try {
+  //   // Check if API key is valid
+  //   const { data: keys, error: dbError } = await supabase
+  //     .from("enabled_apis")
+  //     .select("*")
+  //     .eq("api_key", apiKey);
+
+  //   if (!keys || keys.length === 0) {
+  //     return res.status(403).send("API key not found!");
+  //   } else if (keys[0].credits == 0) {
+  //     await supabase
+  //       .from("enabled_apis")
+  //       .update({ status: "disabled" })
+  //       .eq("api_key", apiKey);
+  //     return res
+  //       .status(403)
+  //       .send(
+  //         "You have consumed your trial credits, your API key has been disabled."
+  //       );
+  //   }
+
+  //   // Call the AI model
+  //   const response = await ai.models.generateContent({
+  //     model: "gemini-2.5-flash-preview-video",
+  //     contents: [{ parts: [{ text: prompt }] }],
+  //     config: {
+  //       responseModalities: ["VIDEO"],
+  //     },
+  //   });
+
+  //   const videoUrl = response.candidates[0].content.parts[0].inlineData.data;
+
+  //   res.send(videoUrl);
+
+  //   await supabase
+  //     .from("enabled_apis")
+  //     .update({ credits: keys[0].credits - 1 })
+  //     .eq("api_key", apiKey);
+  //   await supabase.from("prompt_history").insert({  
+  //     api_key: apiKey,
+  //     type: "video",
+  //     prompt: prompt,
+  //     response: videoUrl || "",
+  //   });} catch (error) {
+  //   console.error(error);}
+
+ async function main() {
+  let operation = await ai.models.generateVideos({
+    model: "veo-2.0-generate-001",
+    prompt: "Panning wide shot of a calico kitten sleeping in the sunshine",
+    config: {
+      personGeneration: "dont_allow",
+      aspectRatio: "16:9",
+    },
+  });
+
+  while (!operation.done) {
+    await new Promise((resolve) => setTimeout(resolve, 10000));
+    operation = await ai.operations.getVideosOperation({
+      operation: operation,
+    });
+  }
+
+  operation.response?.generatedVideos?.forEach(async (generatedVideo, n) => {
+    const resp = await fetch(`${generatedVideo.video?.uri}&key=GOOGLE_API_KEY`); // append your API key
+    const writer = createWriteStream(`video${n}.mp4`);
+    Readable.fromWeb(resp.body).pipe(writer);
+  });
+}
+
+main();
+console.log("Video generation started");
+  res.send("Video generation started, check your console for progress.");
+
+});
+
+
+
+
+
+
 
 app.listen(port, () => {
   console.log(`Server running on port ${port}`);
