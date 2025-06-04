@@ -1,6 +1,7 @@
 import express from "express";
 import bodyParser from "body-parser";
 import passport from "passport";
+import bcrypt from "bcrypt";
 import { v2 as cloudinary } from "cloudinary";
 import crypto from "crypto";
 import Razorpay from "razorpay";
@@ -15,6 +16,7 @@ import path from "path";
 import { fileURLToPath } from "url";
 import axios from "axios";
 import wav from "wav";
+import { createClient as createRedisClient } from "redis";
 import { Readable } from "node:stream";
 const app = express();
 dotenv.config();
@@ -26,11 +28,25 @@ const instance = new Razorpay({
   key_id: process.env.RAZORPAY_KEY_ID,
   key_secret: process.env.RAZORPAY_KEY_SECRET,
 });
+
+
+
+
 cloudinary.config({
   cloud_name: process.env.CLOUD_NAME,
   api_key: process.env.CLOUDINARY_API_KEY,
   api_secret: process.env.CLOUDINARY_API_SECRET,
 });
+
+
+
+const redisClient = createRedisClient({
+  url: process.env.REDIS_URL,
+});
+await redisClient.connect();  
+
+
+
 app.use(
   session({
     secret: process.env.SESSION_SECRET || "your_secret_key",
@@ -69,40 +85,68 @@ app.get(
 );
 
 app.get("/dashboard", async (req, res) => {
-  const message = req.query.message || null; // Get message from query params
-  if (req.isAuthenticated()) {
+  const message = req.query.message || null;
+
+  if (!req.isAuthenticated()) {
+    return res.redirect("/");
+  }
+
+  const uid = req.user.uid;
+const cacheKey = `dashboard:${uid}`;
+  try {
+    const cached = await redisClient.get(cacheKey);
+    if (cached) {
+      const { enabledApis, history, transaction } = JSON.parse(cached);
+      return res.render("dashboard", {
+        user: req.user,
+        enabledApis,
+        textOutput: null,
+        message,
+        history,
+        transaction,
+      });
+    }
+
     const { data: enabledApis, error } = await supabase
       .from("enabled_apis")
       .select("*")
-      .eq("uid", req.user.uid);
+      .eq("uid", uid);
 
     if (error) {
       console.error("Supabase error:", error);
       return res.status(500).send("Database error");
     }
 
-      const { data: history, history_error } = await supabase
+    const { data: history, error: history_error } = await supabase
       .from("prompt_history")
       .select("*")
-      .eq("api_key", enabledApis[0]?.api_key)
+      .eq("api_key", enabledApis[0]?.api_key);
 
-       const { data: transaction,transaction_error } = await supabase
+    const { data: transaction, error: transaction_error } = await supabase
       .from("transaction_history")
       .select("*")
-      .eq("uid", req.user.uid)
+      .eq("uid", uid);
+
+   await redisClient.set(
+  cacheKey,
+  JSON.stringify({ enabledApis, history, transaction }),
+  { EX: 60 * 5 } // 5 minutes expiry
+);
 
     res.render("dashboard", {
       user: req.user,
-      enabledApis, // ✅ we're using enabledApis here, not data
+      enabledApis,
       textOutput: null,
       message,
       history,
-      transaction, // Initialize message to null
+      transaction,
     });
-  } else {
-    res.redirect("/");
+  } catch (err) {
+    console.error("Redis/DB error:", err);
+    res.status(500).send("Server error");
   }
 });
+
 
 app.get(
   "/auth/google/dashboard",
@@ -135,10 +179,10 @@ app.get(
     res.render("dashboard.ejs", {
       user: req.user,
       enabledApis: data ? [data] : [],
-      textOutput: null, // Initialize textOutput to null
+      textOutput: null,
       message,
       history, 
-      transaction,// Initialize message to null
+      transaction,
     });
   }
 );
@@ -146,7 +190,6 @@ app.get(
 app.get("/generate-api-key", async (req, res) => {
   const uid = req.user.uid;
   const generatedApiKey = crypto.randomUUID();
-
   try {
     const { data: existingKeys, error: selectError } = await supabase
       .from("enabled_apis")
@@ -161,6 +204,8 @@ app.get("/generate-api-key", async (req, res) => {
     if (existingKeys.length > 0) {
       res.redirect("/dashboard?message=You already have an API Key.");
     }
+
+
 
     const { error: insertError } = await supabase.from("enabled_apis").insert([
       {
@@ -263,25 +308,45 @@ app.post("/image", async (req, res) => {
   }
 
   try {
-    const { data: keys, error: dbError } = await supabase
-      .from("enabled_apis")
-      .select("*")
-      .eq("api_key", apiKey);
+    const promptKey = `image:${prompt}`;
+    const apiKeyCacheKey = `apikey:${apiKey}`;
 
-    if (!keys || keys.length === 0) {
-      return res.status(403).send("API key not found!");
-    } else if (keys[0].credits == 0) {
+    const cachedImage = await redisClient.get(promptKey);
+    if (cachedImage) {
+      const buffer = Buffer.from(cachedImage, "base64");
+      res.setHeader("Content-Type", "image/png");
+      res.setHeader("Content-Disposition", "inline; filename=image.png");
+      return res.end(buffer);
+    }
+
+    let keyData;
+    const cachedKey = await redisClient.get(apiKeyCacheKey);
+    if (cachedKey) {
+      keyData = JSON.parse(cachedKey);
+    } else {
+      const { data: keys, error } = await supabase
+        .from("enabled_apis")
+        .select("*")
+        .eq("api_key", apiKey);
+
+      if (error || !keys || keys.length === 0) {
+        return res.status(403).send("API key not found!");
+      }
+
+      keyData = keys[0];
+      await redisClient.setEx(apiKeyCacheKey, 3600, JSON.stringify(keyData)); // Cache for 1 hour
+    }
+
+    // 3. Check credits
+    if (keyData.credits === 0) {
       await supabase
         .from("enabled_apis")
         .update({ status: "disabled" })
         .eq("api_key", apiKey);
-      return res
-        .status(403)
-        .send(
-          "You have consumed your trial credits, your API key has been disabled."
-        );
+      return res.status(403).send("You have consumed your trial credits, your API key has been disabled.");
     }
 
+    // 4. Generate image using model
     const response = await ai.models.generateContent({
       model: "gemini-2.0-flash-preview-image-generation",
       contents: prompt,
@@ -293,26 +358,33 @@ app.post("/image", async (req, res) => {
     for (const part of response.candidates[0].content.parts) {
       if (part.inlineData) {
         const imageData = part.inlineData.data;
-        const buffer = Buffer.from(imageData, "base64");
 
+        await redisClient.setEx(promptKey, 86400, imageData);
+
+        const newCredits = keyData.credits - 1;
         await supabase
           .from("enabled_apis")
-          .update({ credits: keys[0].credits - 1 })
+          .update({ credits: newCredits })
           .eq("api_key", apiKey);
 
+        keyData.credits = newCredits;
+        await redisClient.setEx(apiKeyCacheKey, 3600, JSON.stringify(keyData));
+
+        const buffer = Buffer.from(imageData, "base64");
         res.setHeader("Content-Type", "image/png");
         res.setHeader("Content-Disposition", "inline; filename=image.png");
-
         return res.end(buffer);
       }
     }
 
     res.status(500).send("No image data returned");
   } catch (error) {
-    console.error(error);
+    console.error("Error in /image:", error);
     res.status(500).send("Something went wrong");
   }
 });
+
+
 
 app.post("/text", async (req, res) => {
   const { prompt, apiKey } = req.query;
@@ -322,24 +394,41 @@ app.post("/text", async (req, res) => {
   }
 
   try {
-    // Check if API key is valid
-    const { data: keys, error: dbError } = await supabase
-      .from("enabled_apis")
-      .select("*")
-      .eq("api_key", apiKey);
+    let dbKeys;
 
-    if (!keys || keys.length === 0) {
-      return res.status(403).send("API key not found!");
-    } else if (keys[0].credits == 0) {
+    // Try to get the API key data from Redis
+    const redisValue = await redisClient.get(apiKey); // Use actual API key as Redis key
+    if (redisValue) {
+      dbKeys = JSON.parse(redisValue);
+    } else {
+      // If not found in Redis, fetch from Supabase
+      const { data, error: dbError } = await supabase
+        .from("enabled_apis")
+        .select("*")
+        .eq("api_key", apiKey);
+
+      if (dbError) {
+        console.error("Supabase error:", dbError);
+        return res.status(500).send("Database error");
+      }
+
+      if (!data || data.length === 0) {
+        return res.status(403).send("API key not found!");
+      }
+
+      dbKeys = data;
+
+      // Cache in Redis with the actual API key as the key
+      await redisClient.set(apiKey, JSON.stringify(dbKeys), 'EX', 3600); // Optional expiry of 1 hour
+    }
+
+    if (dbKeys[0].credits === 0) {
       await supabase
         .from("enabled_apis")
         .update({ status: "disabled" })
         .eq("api_key", apiKey);
-      return res
-        .status(403)
-        .send(
-          "You have consumed your trial credits, your API key has been disabled."
-        );
+
+      return res.status(403).send("You have consumed your trial credits, your API key has been disabled.");
     }
 
     // Call the AI model
@@ -348,21 +437,22 @@ app.post("/text", async (req, res) => {
       contents: prompt,
     });
 
-    const textOutput = response.text || response.content || "No response text"; // Adjust as per API structure
+    const textOutput = response.text || response.content || "No response text";
 
     res.send(textOutput);
 
+    // Deduct 1 credit
     await supabase
       .from("enabled_apis")
-      .update({ credits: keys[0].credits - 1 })
+      .update({ credits: dbKeys[0].credits - 1 })
       .eq("api_key", apiKey);
 
+    // Log prompt history
     await supabase.from("prompt_history").insert({
       api_key: apiKey,
-
       type: "text",
-      prompt: prompt,
-      response: textOutput || "",
+      prompt,
+      response: textOutput,
     });
   } catch (error) {
     console.error(error);
@@ -400,7 +490,7 @@ app.post("/genai", async (req, res) => {
 
     if (prompt.includes("image")) {
       const imageresponse = await axios.post(
-        `https://algoleap-api-console.onrender.com/image?prompt=${prompt}&apiKey=${apiKey}`,
+        `http://localhost:3000/image?prompt=${prompt}&apiKey=${apiKey}`,
         {},
         { responseType: "arraybuffer" } // <- critical
       );
@@ -509,7 +599,7 @@ const fileName = `${crypto.randomUUID()}.wav`;
     
     else {
       const textresponse = await axios.post(
-        `https://algoleap-api-console.onrender.com/text?prompt=${prompt}&apiKey=${apiKey}`
+        `http://localhost:3000/text?prompt=${prompt}&apiKey=${apiKey}`
       );
       res.send(textresponse.data);
       return;
@@ -527,7 +617,7 @@ passport.use(
       clientID: process.env.GOOGLE_CLIENT_ID,
       clientSecret: process.env.GOOGLE_CLIENT_SECRET,
       callbackURL:
-        "https://algoleap-api-console.onrender.com/auth/google/dashboard",
+        "http://localhost:3000/auth/google/dashboard",
       userProfileURL: "https://www.googleapis.com/oauth2/v3/userinfo",
     },
     async (accessToken, refreshToken, profile, cb) => {
