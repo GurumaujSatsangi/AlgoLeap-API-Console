@@ -490,7 +490,7 @@ app.post("/genai", async (req, res) => {
 
     if (prompt.includes("image")) {
       const imageresponse = await axios.post(
-        `http://localhost:3000/image?prompt=${prompt}&apiKey=${apiKey}`,
+        `https://algoleap-api-console.onrender.com/image?prompt=${prompt}&apiKey=${apiKey}`,
         {},
         { responseType: "arraybuffer" } // <- critical
       );
@@ -599,7 +599,7 @@ const fileName = `${crypto.randomUUID()}.wav`;
     
     else {
       const textresponse = await axios.post(
-        `http://localhost:3000/text?prompt=${prompt}&apiKey=${apiKey}`
+        `https://algoleap-api-console.onrender.com/text?prompt=${prompt}&apiKey=${apiKey}`
       );
       res.send(textresponse.data);
       return;
@@ -617,7 +617,7 @@ passport.use(
       clientID: process.env.GOOGLE_CLIENT_ID,
       clientSecret: process.env.GOOGLE_CLIENT_SECRET,
       callbackURL:
-        "http://localhost:3000/auth/google/dashboard",
+        "https://algoleap-api-console.onrender.com/auth/google/dashboard",
       userProfileURL: "https://www.googleapis.com/oauth2/v3/userinfo",
     },
     async (accessToken, refreshToken, profile, cb) => {
