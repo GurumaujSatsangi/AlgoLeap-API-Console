@@ -1,40 +1,20 @@
 <!DOCTYPE html>
 <html lang="en">
-  <head>
+   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>AlgoLeap</title>
-    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+ 
+   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.0.2/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-EVSTQN3/azprG1Anm3QDgpJLIm9Nao0Yz1ztcQTwFspd3yD65VohhpuuCOmLASjC" crossorigin="anonymous">
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.0.2/dist/js/bootstrap.bundle.min.js" integrity="sha384-MrcW6ZMFYlzcLA8Nl+NtUVF0sA7MsXsP1UyJoMp4YLEuNSfAP+JcXn/tWtIaxVXM" crossorigin="anonymous"></script>
 
-    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
-    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
-    <script
-      src="https://code.jquery.com/jquery-3.2.1.slim.min.js"
-      integrity="sha384-KJ3o2DKtIkvYIK3UENzmM7KCkRr/rE9/Qpg6aAZGJwFDMVNA/GpGFF93hXpG5KkN"
-      crossorigin="anonymous"
-    ></script>
-    <script
-      src="https://cdn.jsdelivr.net/npm/popper.js@1.12.9/dist/umd/popper.min.js"
-      integrity="sha384-ApNbgh9B+Y1QKtv3Rn7W3mgPxhU9K/ScQsAP7hUibX39j7fakFPskvXusvfa0b4Q"
-      crossorigin="anonymous"
-    ></script>
-    <script
-      src="https://cdn.jsdelivr.net/npm/bootstrap@4.0.0/dist/js/bootstrap.min.js"
-      integrity="sha384-JZR6Spejh4U02d8jOt6vLEHfe/JQGiRRSQQxSfFWpi1MquVdAyjUar5+76PVCmYl"
-      crossorigin="anonymous"
-    ></script>
-
-    <link
-      rel="stylesheet"
-      href="https://cdn.jsdelivr.net/npm/bootstrap@4.0.0/dist/css/bootstrap.min.css"
-      integrity="sha384-Gn5384xqQ1aoWXA+058RXPxPg6fy4IWvTNh0E263XmFcJlSAwiGgFAW/dAiS6JXm"
-      crossorigin="anonymous"
-    />
     <link rel="stylesheet" href="/styles.css" />
     <link
       href="https://fonts.googleapis.com/css2?family=Google+Sans:wght@400;500;700&family=Roboto:wght@300;400;500&display=swap"
       rel="stylesheet"
     />
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+
     <script
       src="https://kit.fontawesome.com/a076d05399.js"
       crossorigin="anonymous"
@@ -53,8 +33,8 @@
       </div>
 
       <div class="header-right">
-        <%= user.email %>
-        <a href="/logout" class="btn btn-block" role="button"> Logout</a>
+        You are logged in as <%= user.name %> (<%= user.email %>) &nbsp;
+        <a href="/logout" class="btn btn-outline-success" role="button"> Logout</a>
       </div>
     </header>
 
@@ -72,14 +52,14 @@
 
         <% if (!enabledApis || enabledApis.length === 0) { %>
         <h1>No API Key Found</h1>
-        <a href="/generate-api-key" class="btn btn-block" role="button">
+        <a href="/generate-api-key" class="btn btn-outline-success" role="button">
           Generate API Key</a
         >
 
         <% } else { %>
         <h1 class="onhover_api"><%= enabledApis[0].api_key %></h1>
         <p><span class="badge"><%= enabledApis[0].status %></span>
-              <span class="badge"><%= enabledApis[0].account_status %></span>
+              <span id="status" class="badge"><%= enabledApis[0].account_status %></span>
 
         </p>
         <% } %>
@@ -111,18 +91,15 @@
 <hr>
 
 <div class="accordion" id="accordionExample">
-  <div class="card">
-    <div class="card-header" id="headingOne">
-      <h5 class="mb-0">
-        <button class="btn btn-link" type="button" data-toggle="collapse" data-target="#collapseOne" aria-expanded="true" aria-controls="collapseOne">
-        Hit History
-        </button>
-      </h5>
-    </div>
-
-    <div id="collapseOne" class="collapse" aria-labelledby="headingOne" data-parent="#accordionExample">
-      <div class="card-body">
-        <% if (!enabledApis || enabledApis.length === 0) { %>
+  <div class="accordion-item">
+    <h2 class="accordion-header" id="headingOne">
+      <button class="accordion-button" type="button" data-bs-toggle="collapse" data-bs-target="#collapseOne" aria-expanded="true" aria-controls="collapseOne">
+        Request History
+      </button>
+    </h2>
+    <div id="collapseOne" class="accordion-collapse collapse" aria-labelledby="headingOne" data-bs-parent="#accordionExample">
+      <div class="accordion-body">
+<% if (!enabledApis || enabledApis.length === 0) { %>
         <h1>No Hit History Found</h1>
         <% } else { %>
         <table border="1" class="table table-striped">
@@ -143,20 +120,18 @@
             <% }); %>
           </tbody>
         </table>
-        <% } %>
-      </div>
+        <% } %>      </div>
     </div>
   </div>
-  <div class="card">
-    <div class="card-header" id="headingTwo">
-      <h5 class="mb-0">
-        <button class="btn btn-link collapsed" type="button" data-toggle="collapse" data-target="#collapseTwo" aria-expanded="false" aria-controls="collapseTwo">
-Transaction History        </button>
-      </h5>
-    </div>
-    <div id="collapseTwo" class="collapse" aria-labelledby="headingTwo" data-parent="#accordionExample">
-      <div class="card-body">
-       <% if (!transaction || transaction.length === 0) { %>
+  <div class="accordion-item">
+    <h2 class="accordion-header" id="headingTwo">
+      <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapseTwo" aria-expanded="false" aria-controls="collapseTwo">
+       Payment History
+      </button>
+    </h2>
+    <div id="collapseTwo" class="accordion-collapse collapse" aria-labelledby="headingTwo" data-bs-parent="#accordionExample">
+      <div class="accordion-body">
+<% if (!transaction || transaction.length === 0) { %>
         <h1>No Transaction History Found</h1>
         <% } else { %>
         <table border="1" class="table table-striped">
@@ -177,16 +152,12 @@ Transaction History        </button>
             <% }); %>
           </tbody>
         </table>
-        <% } %>
-      </div>
+        <% } %>      </div>
     </div>
   </div>
   
 </div>
-
- 
-
-      </div>
+ </div>
 
       <script>
 const timestamps = document.querySelectorAll(".timestamp");
@@ -205,6 +176,18 @@ const timestamps = document.querySelectorAll(".timestamp");
     item.innerText = date.toLocaleString("en-US", {
   timeZone: "Asia/Kolkata"
 });
+  });
+
+  
+  document.addEventListener("DOMContentLoaded", function () {
+    const status = document.getElementById("status");
+    const alertBox = document.querySelector(".alert.alert-primary");
+
+    if (status && status.innerText.trim().toLowerCase() === "premium plan") {
+      if (alertBox) {
+        alertBox.style.display = "none";
+      }
+    }
   });
 
 
@@ -239,5 +222,8 @@ const timestamps = document.querySelectorAll(".timestamp");
 <% } %>
 
     <script src="/script.js"></script>
+       <footer class="footer bg-dark text-white text-center py-3" style="position:relative; left:0; bottom:0; width:100%; z-index:1030;">
+  Copyright &#9400; AlgoLeap. All rights reserved. 
+</footer>
   </body>
 </html>

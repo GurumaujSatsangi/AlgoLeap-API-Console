@@ -11,41 +11,33 @@ import session from "express-session";
 import dotenv from "dotenv";
 import { createClient } from "@supabase/supabase-js";
 import { GoogleGenAI, Modality } from "@google/genai";
-import * as fs from "node:fs";
 import path from "path";
 import { fileURLToPath } from "url";
 import axios from "axios";
 import wav from "wav";
-import { createClient as createRedisClient } from "redis";
-import { Readable } from "node:stream";
+import { createWriteStream } from "fs";
+import fs from "fs";
+import { Readable } from "stream";
+import NodeCache from "node-cache";
+
 const app = express();
 dotenv.config();
 
-
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+
 const instance = new Razorpay({
   key_id: process.env.RAZORPAY_KEY_ID,
   key_secret: process.env.RAZORPAY_KEY_SECRET,
 });
 
-
-
+const localCache = new NodeCache({ stdTTL: 1 }); // 5 min TTL
 
 cloudinary.config({
   cloud_name: process.env.CLOUD_NAME,
   api_key: process.env.CLOUDINARY_API_KEY,
   api_secret: process.env.CLOUDINARY_API_SECRET,
 });
-
-
-
-const redisClient = createRedisClient({
-  url: process.env.REDIS_URL,
-});
-await redisClient.connect();  
-
-
 
 app.use(
   session({
@@ -64,7 +56,6 @@ app.use(bodyParser.urlencoded({ extended: true }));
 app.use(bodyParser.json());
 app.use(express.static("public"));
 app.set("view engine", "ejs");
-app.use("/static", express.static(path.join(__dirname, "public")));
 
 app.set("views", path.join(__dirname, "views"));
 app.use(passport.initialize());
@@ -92,11 +83,13 @@ app.get("/dashboard", async (req, res) => {
   }
 
   const uid = req.user.uid;
-const cacheKey = `dashboard:${uid}`;
+  const cacheKey = `dashboard:${uid}`;
+
   try {
-    const cached = await redisClient.get(cacheKey);
+    const cached = localCache.get(cacheKey);
+
     if (cached) {
-      const { enabledApis, history, transaction } = JSON.parse(cached);
+      const { enabledApis, history, transaction } = cached;
       return res.render("dashboard", {
         user: req.user,
         enabledApis,
@@ -127,11 +120,7 @@ const cacheKey = `dashboard:${uid}`;
       .select("*")
       .eq("uid", uid);
 
-   await redisClient.set(
-  cacheKey,
-  JSON.stringify({ enabledApis, history, transaction }),
-  { EX: 60 * 5 } // 5 minutes expiry
-);
+    localCache.set(cacheKey, { enabledApis, history, transaction });
 
     res.render("dashboard", {
       user: req.user,
@@ -142,11 +131,10 @@ const cacheKey = `dashboard:${uid}`;
       transaction,
     });
   } catch (err) {
-    console.error("Redis/DB error:", err);
+    console.error("Cache/DB error:", err);
     res.status(500).send("Server error");
   }
 });
-
 
 app.get(
   "/auth/google/dashboard",
@@ -155,35 +143,66 @@ app.get(
     successRedirect: "/dashboard",
   }),
   async (req, res) => {
-    const { data, error } = await supabase
-      .from("enabled_apis")
-      .select("*")
-      .eq("uid", req.user.uid)
-      .single(); 
-      
-      
-      const { data: history, history_error } = await supabase
-      .from("prompt_history")
-      .select("*")
-      .eq("api_key", enabledApis[0]?.api_key);
-
-       const { data: transaction,transaction_error } = await supabase
-      .from("transaction_history")
-      .select("*")
-      .eq("uid", req.user.uid)
-    if (error && error.code !== "PGRST116") {
-      console.error(error);
-      return res.send("Database error!");
+    if (!req.isAuthenticated()) {
+      return res.redirect("/");
     }
 
-    res.render("dashboard.ejs", {
-      user: req.user,
-      enabledApis: data ? [data] : [],
-      textOutput: null,
-      message,
-      history, 
-      transaction,
-    });
+    const uid = req.user.uid;
+    const cacheKey = `dashboard:${uid}`;
+    const message = req.query.message || null;
+
+    try {
+      const cached = localCache.get(cacheKey);
+
+      if (cached) {
+        const { enabledApis, history, transaction } = cached;
+        return res.render("dashboard.ejs", {
+          user: req.user,
+          enabledApis,
+          textOutput: null,
+          message,
+          history,
+          transaction,
+        });
+      }
+
+      const { data: apiData, error } = await supabase
+        .from("enabled_apis")
+        .select("*")
+        .eq("uid", uid)
+        .single();
+
+      if (error && error.code !== "PGRST116") {
+        console.error(error);
+        return res.send("Database error!");
+      }
+
+      const enabledApis = apiData ? [apiData] : [];
+
+      const { data: history, error: historyError } = await supabase
+        .from("prompt_history")
+        .select("*")
+        .eq("api_key", enabledApis[0]?.api_key);
+
+      const { data: transaction, error: transactionError } = await supabase
+        .from("transaction_history")
+        .select("*")
+        .eq("uid", uid);
+
+      localCache.set(cacheKey, { enabledApis, history, transaction });
+
+      res.render("dashboard.ejs", {
+        user: req.user,
+        enabledApis,
+        textOutput: null,
+        message,
+        history,
+        transaction,
+      });
+    } catch (err) {
+      console.error("Error:", err);
+      res.status(500).send("Server error");
+    }
   }
 );
 
@@ -204,8 +223,6 @@ app.get("/generate-api-key", async (req, res) => {
     if (existingKeys.length > 0) {
       res.redirect("/dashboard?message=You already have an API Key.");
     }
-
-
 
     const { error: insertError } = await supabase.from("enabled_apis").insert([
       {
@@ -287,176 +304,16 @@ app.post("/verify-payment", async (req, res) => {
       })
       .eq("uid", payment.notes.userId);
 
-      await supabase.from("transaction_history").insert({
-        transaction_id: razorpay_payment_id,
+    await supabase.from("transaction_history").insert({
+      transaction_id: razorpay_payment_id,
 
-        uid: payment.notes.userId,
-        timestamp: new Date().toISOString(),
-        transaction_status: payment.status,
-      });
+      uid: payment.notes.userId,
+      timestamp: new Date().toISOString(),
+      transaction_status: payment.status,
+    });
     res.json({ success: true });
   } else {
     res.json({ success: false });
-  }
-});
-
-app.post("/image", async (req, res) => {
-  const { prompt, apiKey } = req.query;
-
-  if (!prompt || !apiKey) {
-    return res.status(400).send("Missing prompt or API key");
-  }
-
-  try {
-    const promptKey = `image:${prompt}`;
-    const apiKeyCacheKey = `apikey:${apiKey}`;
-
-    const cachedImage = await redisClient.get(promptKey);
-    if (cachedImage) {
-      const buffer = Buffer.from(cachedImage, "base64");
-      res.setHeader("Content-Type", "image/png");
-      res.setHeader("Content-Disposition", "inline; filename=image.png");
-      return res.end(buffer);
-    }
-
-    let keyData;
-    const cachedKey = await redisClient.get(apiKeyCacheKey);
-    if (cachedKey) {
-      keyData = JSON.parse(cachedKey);
-    } else {
-      const { data: keys, error } = await supabase
-        .from("enabled_apis")
-        .select("*")
-        .eq("api_key", apiKey);
-
-      if (error || !keys || keys.length === 0) {
-        return res.status(403).send("API key not found!");
-      }
-
-      keyData = keys[0];
-      await redisClient.setEx(apiKeyCacheKey, 3600, JSON.stringify(keyData)); // Cache for 1 hour
-    }
-
-    // 3. Check credits
-    if (keyData.credits === 0) {
-      await supabase
-        .from("enabled_apis")
-        .update({ status: "disabled" })
-        .eq("api_key", apiKey);
-      return res.status(403).send("You have consumed your trial credits, your API key has been disabled.");
-    }
-
-    // 4. Generate image using model
-    const response = await ai.models.generateContent({
-      model: "gemini-2.0-flash-preview-image-generation",
-      contents: prompt,
-      config: {
-        responseModalities: [Modality.TEXT, Modality.IMAGE],
-      },
-    });
-
-    for (const part of response.candidates[0].content.parts) {
-      if (part.inlineData) {
-        const imageData = part.inlineData.data;
-
-        await redisClient.setEx(promptKey, 86400, imageData);
-
-        const newCredits = keyData.credits - 1;
-        await supabase
-          .from("enabled_apis")
-          .update({ credits: newCredits })
-          .eq("api_key", apiKey);
-
-        keyData.credits = newCredits;
-        await redisClient.setEx(apiKeyCacheKey, 3600, JSON.stringify(keyData));
-
-        const buffer = Buffer.from(imageData, "base64");
-        res.setHeader("Content-Type", "image/png");
-        res.setHeader("Content-Disposition", "inline; filename=image.png");
-        return res.end(buffer);
-      }
-    }
-
-    res.status(500).send("No image data returned");
-  } catch (error) {
-    console.error("Error in /image:", error);
-    res.status(500).send("Something went wrong");
-  }
-});
-
-
-
-app.post("/text", async (req, res) => {
-  const { prompt, apiKey } = req.query;
-
-  if (!prompt || !apiKey) {
-    return res.status(400).send("Missing prompt or API key");
-  }
-
-  try {
-    let dbKeys;
-
-    // Try to get the API key data from Redis
-    const redisValue = await redisClient.get(apiKey); // Use actual API key as Redis key
-    if (redisValue) {
-      dbKeys = JSON.parse(redisValue);
-    } else {
-      // If not found in Redis, fetch from Supabase
-      const { data, error: dbError } = await supabase
-        .from("enabled_apis")
-        .select("*")
-        .eq("api_key", apiKey);
-
-      if (dbError) {
-        console.error("Supabase error:", dbError);
-        return res.status(500).send("Database error");
-      }
-
-      if (!data || data.length === 0) {
-        return res.status(403).send("API key not found!");
-      }
-
-      dbKeys = data;
-
-      // Cache in Redis with the actual API key as the key
-      await redisClient.set(apiKey, JSON.stringify(dbKeys), 'EX', 3600); // Optional expiry of 1 hour
-    }
-
-    if (dbKeys[0].credits === 0) {
-      await supabase
-        .from("enabled_apis")
-        .update({ status: "disabled" })
-        .eq("api_key", apiKey);
-
-      return res.status(403).send("You have consumed your trial credits, your API key has been disabled.");
-    }
-
-    // Call the AI model
-    const response = await ai.models.generateContent({
-      model: "gemini-2.0-flash",
-      contents: prompt,
-    });
-
-    const textOutput = response.text || response.content || "No response text";
-
-    res.send(textOutput);
-
-    // Deduct 1 credit
-    await supabase
-      .from("enabled_apis")
-      .update({ credits: dbKeys[0].credits - 1 })
-      .eq("api_key", apiKey);
-
-    // Log prompt history
-    await supabase.from("prompt_history").insert({
-      api_key: apiKey,
-      type: "text",
-      prompt,
-      response: textOutput,
-    });
-  } catch (error) {
-    console.error(error);
-    res.status(500).send("Something went wrong");
   }
 });
 
@@ -468,142 +325,195 @@ app.post("/genai", async (req, res) => {
   }
 
   try {
-    // Check if API key is valid
-    const { data: keys, error: dbError } = await supabase
-      .from("enabled_apis")
-      .select("*")
-      .eq("api_key", apiKey);
+    // Use cached API key validation if available
+    let keyData = localCache.get(apiKey);
 
-    if (!keys || keys.length === 0) {
-      return res.status(403).send("API key not found!");
-    } else if (keys[0].credits == 0) {
+    if (!keyData) {
+      const { data: keys, error: dbError } = await supabase
+        .from("enabled_apis")
+        .select("*")
+        .eq("api_key", apiKey);
+
+      if (!keys || keys.length === 0) {
+        return res.status(403).send("API key not found!");
+      }
+
+      keyData = keys[0];
+      localCache.set(apiKey, keyData);
+    }
+
+    if (keyData.credits <= 0) {
       await supabase
         .from("enabled_apis")
         .update({ status: "disabled" })
         .eq("api_key", apiKey);
-      return res
-        .status(403)
-        .send(
-          "You have consumed your trial credits, your API key has been disabled."
-        );
+      return res.status(403).send("Trial credits consumed, API key disabled.");
     }
 
-    if (prompt.includes("image")) {
-      const imageresponse = await axios.post(
-        `https://algoleap-api-console.onrender.com/image?prompt=${prompt}&apiKey=${apiKey}`,
-        {},
-        { responseType: "arraybuffer" } // <- critical
-      );
-      const fileName = `${crypto.randomUUID()}.png`;
+    const updateCredits = async () => {
+      const newCredits = keyData.credits - 1;
+      keyData.credits = newCredits;
+      localCache.set(apiKey, keyData);
+      await supabase
+        .from("enabled_apis")
+        .update({ credits: newCredits })
+        .eq("api_key", apiKey);
+    };
 
-      const imageBuffer = Buffer.from(imageresponse.data);
-
-      const imagePath = path.join(__dirname, fileName);
-
-      fs.writeFileSync(imagePath, imageBuffer);
-
-      res.sendFile(fileName, { root: __dirname });
-
-      const uploadResult = await cloudinary.uploader
-        .upload(fileName, {
-          resource_type: "image", // Cloudinary treats audio files as "video"
-          public_id: fileName,
-        })
-        .catch((error) => {
-          console.log(error);
-        });
+    const logPrompt = async (type, responseUrlOrText) => {
       await supabase.from("prompt_history").insert({
         api_key: apiKey,
+        type,
+        prompt,
+        response: responseUrlOrText,
+      });
+    };
 
-        type: "image",
-        prompt: prompt,
-        response: uploadResult?.secure_url || "",
+    if (prompt.includes("image")) {
+      const response = await ai.models.generateContent({
+        model: "gemini-2.0-flash-preview-image-generation",
+        contents: prompt,
+        config: {
+          responseModalities: ["TEXT", "IMAGE"],
+        },
       });
 
-      return;
-    } else if (prompt.includes("audio")) {
-      async function saveWaveFile(
+      const imageData = response?.candidates?.[0]?.content?.parts?.find(
+        (p) => p.inlineData
+      )?.inlineData?.data;
+
+      if (!imageData) return res.status(500).send("Image generation failed");
+
+      const buffer = Buffer.from(imageData, "base64");
+      const fileName = `${crypto.randomUUID()}.png`;
+      const imagePath = path.join(__dirname, fileName);
+      fs.writeFileSync(imagePath, buffer);
+
+      const uploadResult = await cloudinary.uploader.upload(imagePath, {
+        resource_type: "image",
+        public_id: fileName,
+      });
+
+      await logPrompt("image", uploadResult.secure_url);
+      await updateCredits();
+
+      return res.send({ url: uploadResult.secure_url });
+    }
+
+    if (prompt.includes("audio")) {
+      const fileName = `${crypto.randomUUID()}.wav`;
+      const audioPath = path.join(__dirname, fileName);
+
+      const saveWaveFile = (
         filename,
         pcmData,
         channels = 1,
         rate = 24000,
         sampleWidth = 2
-      ) {
+      ) => {
         return new Promise((resolve, reject) => {
           const writer = new wav.FileWriter(filename, {
             channels,
             sampleRate: rate,
             bitDepth: sampleWidth * 8,
           });
-
           writer.on("finish", resolve);
           writer.on("error", reject);
-
           writer.write(pcmData);
           writer.end();
         });
-      }
-const fileName = `${crypto.randomUUID()}.wav`;
+      };
 
-      async function main() {
-        const response = await ai.models.generateContent({
-          model: "gemini-2.5-flash-preview-tts",
-          contents: [{ parts: [{ text: prompt }] }],
-          config: {
-            responseModalities: ["AUDIO"],
-            speechConfig: {
-              voiceConfig: {
-                prebuiltVoiceConfig: { voiceName: "Kore" },
-              },
+      const response = await ai.models.generateContent({
+        model: "gemini-2.5-flash-preview-tts",
+        contents: [{ parts: [{ text: prompt }] }],
+        config: {
+          responseModalities: ["AUDIO"],
+          speechConfig: {
+            voiceConfig: {
+              prebuiltVoiceConfig: { voiceName: "Kore" },
             },
           },
-        });
-
-        const data =
-          response.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
-        const audioBuffer = Buffer.from(data, "base64");
-
-        await saveWaveFile(fileName, audioBuffer);
-      }
-      await main();
-
-      const uploadResult = await cloudinary.uploader
-        .upload(fileName, {
-          resource_type: "video", // Cloudinary treats audio files as "video"
-          public_id: fileName,
-        })
-        .catch((error) => {
-          console.log(error);
-        });
-      await supabase.from("prompt_history").insert({
-        api_key: apiKey,
-        type: "audio",
-        prompt: prompt,
-        response: uploadResult?.secure_url || "",
+        },
       });
 
-      res.send({
-        message: "Audio File Generated Successfully!",
-        fileUrl: uploadResult?.secure_url,
-      });
-       await supabase
-        .from("enabled_apis")
-        .update({ credits: keys[0].credits - 1 })
-        .eq("api_key", apiKey);
-      return;
+      const data =
+        response?.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
+      if (!data) return res.status(500).send("Audio generation failed");
 
-     
-    } 
-    
-    
-    
-    else {
-      const textresponse = await axios.post(
-        `https://algoleap-api-console.onrender.com/text?prompt=${prompt}&apiKey=${apiKey}`
-      );
-      res.send(textresponse.data);
-      return;
+      await saveWaveFile(audioPath, Buffer.from(data, "base64"));
+
+      const uploadResult = await cloudinary.uploader.upload(audioPath, {
+        resource_type: "video",
+        public_id: fileName,
+      });
+
+      await logPrompt("audio", uploadResult.secure_url);
+      await updateCredits();
+
+      return res.send({
+        message: "Audio generated",
+        url: uploadResult.secure_url,
+      });
     }
+
+    if (prompt.includes("video")) {
+      let operation = await ai.models.generateVideos({
+        model: "veo-2.0-generate-001",
+        prompt: prompt,
+        config: {
+          personGeneration: "dont_allow",
+          aspectRatio: "16:9",
+        },
+      });
+
+      while (!operation.done) {
+        await new Promise((resolve) => setTimeout(resolve, 10000));
+        operation = await ai.operations.getVideosOperation({
+          operation,
+        });
+      }
+
+      const generatedVideo = operation.response?.generatedVideos?.[0];
+      const videoUrl = `${generatedVideo?.video?.uri}&key=${process.env.GOOGLE_API_KEY}`;
+
+      const resp = await fetch(videoUrl);
+      const fileName = `${crypto.randomUUID()}.mp4`;
+      const videoPath = path.join(__dirname, fileName);
+      const writer = createWriteStream(videoPath);
+      await new Promise((resolve, reject) => {
+        Readable.fromWeb(resp.body)
+          .pipe(writer)
+          .on("finish", resolve)
+          .on("error", reject);
+      });
+      const uploadResult = await cloudinary.uploader.upload(videoPath, {
+        resource_type: "video",
+        public_id: fileName,
+      });
+
+      await logPrompt("video", uploadResult.secure_url);
+      await updateCredits();
+
+      return res.send({
+        message: "Video generated",
+        url: uploadResult.secure_url,
+      });
+    }
+
+    // Default: Text Generation
+    const response = await ai.models.generateContent({
+      model: "gemini-2.0-flash",
+      contents: prompt,
+    });
+
+    const textOutput =
+      response?.text || response?.content || "No response text";
+
+    await logPrompt("text", textOutput);
+    await updateCredits();
+
+    return res.send(textOutput);
   } catch (error) {
     console.error(error);
     res.status(500).send("Something went wrong");
@@ -616,8 +526,7 @@ passport.use(
     {
       clientID: process.env.GOOGLE_CLIENT_ID,
       clientSecret: process.env.GOOGLE_CLIENT_SECRET,
-      callbackURL:
-        "https://algoleap-api-console.onrender.com/auth/google/dashboard",
+      callbackURL: "https://algoleap-api-console.onrender.com/auth/google/dashboard",
       userProfileURL: "https://www.googleapis.com/oauth2/v3/userinfo",
     },
     async (accessToken, refreshToken, profile, cb) => {
@@ -680,95 +589,6 @@ app.get("/logout", (req, res) => {
     res.redirect("/");
   });
 });
-
-app.post("/video", async (req, res) => {
-  // const { prompt, apiKey } = req.query;
-
-  // if (!prompt || !apiKey) {
-  //   return res.status(400).send("Missing prompt or API key");
-  // }
-
-  // try {
-  //   // Check if API key is valid
-  //   const { data: keys, error: dbError } = await supabase
-  //     .from("enabled_apis")
-  //     .select("*")
-  //     .eq("api_key", apiKey);
-
-  //   if (!keys || keys.length === 0) {
-  //     return res.status(403).send("API key not found!");
-  //   } else if (keys[0].credits == 0) {
-  //     await supabase
-  //       .from("enabled_apis")
-  //       .update({ status: "disabled" })
-  //       .eq("api_key", apiKey);
-  //     return res
-  //       .status(403)
-  //       .send(
-  //         "You have consumed your trial credits, your API key has been disabled."
-  //       );
-  //   }
-
-  //   // Call the AI model
-  //   const response = await ai.models.generateContent({
-  //     model: "gemini-2.5-flash-preview-video",
-  //     contents: [{ parts: [{ text: prompt }] }],
-  //     config: {
-  //       responseModalities: ["VIDEO"],
-  //     },
-  //   });
-
-  //   const videoUrl = response.candidates[0].content.parts[0].inlineData.data;
-
-  //   res.send(videoUrl);
-
-  //   await supabase
-  //     .from("enabled_apis")
-  //     .update({ credits: keys[0].credits - 1 })
-  //     .eq("api_key", apiKey);
-  //   await supabase.from("prompt_history").insert({  
-  //     api_key: apiKey,
-  //     type: "video",
-  //     prompt: prompt,
-  //     response: videoUrl || "",
-  //   });} catch (error) {
-  //   console.error(error);}
-
- async function main() {
-  let operation = await ai.models.generateVideos({
-    model: "veo-2.0-generate-001",
-    prompt: "Panning wide shot of a calico kitten sleeping in the sunshine",
-    config: {
-      personGeneration: "dont_allow",
-      aspectRatio: "16:9",
-    },
-  });
-
-  while (!operation.done) {
-    await new Promise((resolve) => setTimeout(resolve, 10000));
-    operation = await ai.operations.getVideosOperation({
-      operation: operation,
-    });
-  }
-
-  operation.response?.generatedVideos?.forEach(async (generatedVideo, n) => {
-    const resp = await fetch(`${generatedVideo.video?.uri}&key=GOOGLE_API_KEY`); // append your API key
-    const writer = createWriteStream(`video${n}.mp4`);
-    Readable.fromWeb(resp.body).pipe(writer);
-  });
-}
-
-main();
-console.log("Video generation started");
-  res.send("Video generation started, check your console for progress.");
-
-});
-
-
-
-
-
-
 
 app.listen(port, () => {
   console.log(`Server running on port ${port}`);
