@@ -217,11 +217,10 @@ app.get("/generate-api-key", async (req, res) => {
 
     if (selectError) {
       console.error(selectError);
-      res.redirect("/dashboard?message=Error fetching existing API keys.");
+      return res.redirect("/dashboard?message=Error fetching existing API keys.");
     }
-
     if (existingKeys.length > 0) {
-      res.redirect("/dashboard?message=You already have an API Key.");
+      return res.redirect("/dashboard?message=You already have an API Key.");
     }
 
     const { error: insertError } = await supabase.from("enabled_apis").insert([
@@ -236,13 +235,13 @@ app.get("/generate-api-key", async (req, res) => {
 
     if (insertError) {
       console.error(insertError);
-      res.render("dashboard", { message: "Error creating API key." });
+      return res.render("dashboard", { message: "Error creating API key." });
     }
 
     return res.redirect("/dashboard");
-  } catch (err) {
+     } catch (err) {
     console.error(err);
-    return res.send("Server error!");
+    return res.redirect("/dashboard?message=Error generating API key.");
   }
 });
 
@@ -263,7 +262,7 @@ app.post("/create-order", async (req, res) => {
       return;
     } else {
       const options = {
-        amount: 49900,
+        amount: 100000,
         currency: "INR",
         receipt: "receipt_" + Date.now(),
         notes: {

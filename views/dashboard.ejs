@@ -1,40 +1,32 @@
 <!DOCTYPE html>
 <html lang="en">
-   <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>AlgoLeap</title>
- 
-   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.0.2/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-EVSTQN3/azprG1Anm3QDgpJLIm9Nao0Yz1ztcQTwFspd3yD65VohhpuuCOmLASjC" crossorigin="anonymous">
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.0.2/dist/js/bootstrap.bundle.min.js" integrity="sha384-MrcW6ZMFYlzcLA8Nl+NtUVF0sA7MsXsP1UyJoMp4YLEuNSfAP+JcXn/tWtIaxVXM" crossorigin="anonymous"></script>
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>AlgoLeap</title>
 
-    <link rel="stylesheet" href="/styles.css" />
-    <link
-      href="https://fonts.googleapis.com/css2?family=Google+Sans:wght@400;500;700&family=Roboto:wght@300;400;500&display=swap"
-      rel="stylesheet"
-    />
-    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.0.2/dist/css/bootstrap.min.css" rel="stylesheet" crossorigin="anonymous">
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.0.2/dist/js/bootstrap.bundle.min.js" crossorigin="anonymous"></script>
 
-    <script
-      src="https://kit.fontawesome.com/a076d05399.js"
-      crossorigin="anonymous"
-    ></script>
-  </head>
-  <body>
+  <link rel="stylesheet" href="/styles.css" />
+  <link href="https://fonts.googleapis.com/css2?family=Google+Sans:wght@400;500;700&family=Roboto:wght@300;400;500&display=swap" rel="stylesheet" />
+  <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+  <script src="https://kit.fontawesome.com/a076d05399.js" crossorigin="anonymous"></script>
+</head>
+
+<body class="d-flex flex-column min-vh-100">
+  <div class="flex-grow-1">
     <header>
       <div class="header-left">
-        <button class="menu-btn">
-          <i class="fas fa-bars"></i>
-        </button>
+        <button class="menu-btn"><i class="fas fa-bars"></i></button>
         <div class="logo">
           <img src="/algoleap.png" alt="AlgoLeap" />
           <span>API Console</span>
         </div>
       </div>
-
       <div class="header-right">
         You are logged in as <%= user.name %> (<%= user.email %>) &nbsp;
-        <a href="/logout" class="btn btn-outline-success" role="button"> Logout</a>
+        <a href="/logout" class="btn btn-outline-success">Logout</a>
       </div>
     </header>
 
@@ -52,165 +44,100 @@
 
         <% if (!enabledApis || enabledApis.length === 0) { %>
         <h1>No API Key Found</h1>
-        <a href="/generate-api-key" class="btn btn-outline-success" role="button">
-          Generate API Key</a
-        >
-
+        <a href="/generate-api-key" class="btn btn-outline-success">Generate API Key</a>
         <% } else { %>
         <h1 class="onhover_api"><%= enabledApis[0].api_key %></h1>
-        <p><span class="badge"><%= enabledApis[0].status %></span>
-              <span id="status" class="badge"><%= enabledApis[0].account_status %></span>
-
+        <p>
+          <span class="badge"><%= enabledApis[0].status %></span>
+          <span id="status" class="badge"><%= enabledApis[0].account_status %></span>
         </p>
         <% } %>
-<hr>        <div class="alert alert-primary" role="alert">
-          Each request to the API will consume credits.
-          <br /><br>
-          <span
-            ><form action="/create-order" method="POST">
-              <input
-                type="submit"
-                class="btn btn-primary"
-                value="Upgrade Now"
-              /></form
-          ></span>
+
+        <hr>
+        <div class="alert alert-primary" role="alert">
+          Each request to the API will consume credits.<br><br>
+          <form action="/create-order" method="POST">
+            <input type="submit" class="btn btn-primary" value="Upgrade Now" />
+          </form>
         </div>
 
-<hr>
-<table class="table table-striped">
- 
-  <tbody>
-    <tr>
-     
-      <td><span class="badge-method">POST</span></td>
-      <td>/genai?apiKey={YOUR_API_KEY}&prompt={YOUR_PROMPT}</td>
-    </tr>
-   
-  </tbody>
-</table>
-<hr>
-
-<div class="accordion" id="accordionExample">
-  <div class="accordion-item">
-    <h2 class="accordion-header" id="headingOne">
-      <button class="accordion-button" type="button" data-bs-toggle="collapse" data-bs-target="#collapseOne" aria-expanded="true" aria-controls="collapseOne">
-        Request History
-      </button>
-    </h2>
-    <div id="collapseOne" class="accordion-collapse collapse" aria-labelledby="headingOne" data-bs-parent="#accordionExample">
-      <div class="accordion-body">
-<% if (!enabledApis || enabledApis.length === 0) { %>
-        <h1>No Hit History Found</h1>
-        <% } else { %>
-        <table border="1" class="table table-striped">
-          <thead>
-            <tr>
-              <th>Response Type</th>
-              <th>Prompt</th>
-              <th>Response</th>
-            </tr>
-          </thead>
+        <hr>
+        <table class="table table-striped">
           <tbody>
-            <% history.forEach(history => { %>
             <tr>
-              <td><%= history.type %></td>
-              <td><%= history.prompt %></td>
-              <td class="response"><%= history.response %></td>
+              <td><span class="badge-method">POST</span></td>
+              <td>/genai?apiKey={YOUR_API_KEY}&prompt={YOUR_PROMPT}</td>
             </tr>
-            <% }); %>
           </tbody>
         </table>
-        <% } %>      </div>
-    </div>
-  </div>
-  <div class="accordion-item">
-    <h2 class="accordion-header" id="headingTwo">
-      <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapseTwo" aria-expanded="false" aria-controls="collapseTwo">
-       Payment History
-      </button>
-    </h2>
-    <div id="collapseTwo" class="accordion-collapse collapse" aria-labelledby="headingTwo" data-bs-parent="#accordionExample">
-      <div class="accordion-body">
-<% if (!transaction || transaction.length === 0) { %>
-        <h1>No Transaction History Found</h1>
-        <% } else { %>
-        <table border="1" class="table table-striped">
-          <thead>
-            <tr>
-              <th>Payment ID</th>
-              <th>Timestamp</th>
-              <th>Payment Status</th>
-            </tr>
-          </thead>
-          <tbody>
-            <% transaction.forEach(transaction => { %>
-            <tr>
-              <td><%= transaction.transaction_id %></td>
-              <td class="timestamp"><%= transaction.timestamp %></td>
-              <td><%= transaction.transaction_status %></td>
-            </tr>
-            <% }); %>
-          </tbody>
-        </table>
-        <% } %>      </div>
-    </div>
-  </div>
-  
-</div>
- </div>
 
-      <script>
-const timestamps = document.querySelectorAll(".timestamp");
-  timestamps.forEach(item => {
-    const date = new Date(item.innerText);
-    const options = { 
-  year: "numeric", 
-  month: "long", 
-  day: "numeric", 
-  hour: "2-digit", 
-  minute: "2-digit", 
-  second: "2-digit" ,
-  timeZoneName: "short",
-  timeZone: "Asia/Kolkata"
-};
-    item.innerText = date.toLocaleString("en-US", {
-  timeZone: "Asia/Kolkata"
-});
-  });
+        <hr>
+        <div class="accordion" id="accordionExample">
+          <div class="accordion-item">
+            <h2 class="accordion-header" id="headingOne">
+              <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapseOne">
+                Request History
+              </button>
+            </h2>
+            <div id="collapseOne" class="accordion-collapse collapse">
+              <div class="accordion-body">
+                <% if (!enabledApis || enabledApis.length === 0) { %>
+                <h1>No Hit History Found</h1>
+                <% } else { %>
+                <table class="table table-striped">
+                  <thead>
+                    <tr><th>Response Type</th><th>Prompt</th><th>Response</th></tr>
+                  </thead>
+                  <tbody>
+                    <% history.forEach(history => { %>
+                    <tr>
+                      <td><%= history.type %></td>
+                      <td><%= history.prompt %></td>
+                      <td class="response"><%= history.response %></td>
+                    </tr>
+                    <% }); %>
+                  </tbody>
+                </table>
+                <% } %>
+              </div>
+            </div>
+          </div>
 
-  
-  document.addEventListener("DOMContentLoaded", function () {
-    const status = document.getElementById("status");
-    const alertBox = document.querySelector(".alert.alert-primary");
-
-    if (status && status.innerText.trim().toLowerCase() === "premium plan") {
-      if (alertBox) {
-        alertBox.style.display = "none";
-      }
-    }
-  });
-
-
-
-        const responses = document.querySelectorAll(".response");
-
-  responses.forEach(item => {
-    const text = item.innerText;
-    if (text.includes("https://res.cloudinary.com/prarthana")) {
-      item.innerHTML = `<a href="${text}" target="_blank">View Response</a>`;
-    } else {
-      item.innerHTML = text;
-    }
-  });
-        const status = document.querySelector(".badge");
-        if (status.innerText === "enabled") {
-          status.style.backgroundColor = "#4CAF50";
-        } else if (status.innerText === "disabled") {
-          status.style.backgroundColor = "#f44336";
-        }
-      </script>
+          <div class="accordion-item">
+            <h2 class="accordion-header" id="headingTwo">
+              <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapseTwo">
+                Payment History
+              </button>
+            </h2>
+            <div id="collapseTwo" class="accordion-collapse collapse">
+              <div class="accordion-body">
+                <% if (!transaction || transaction.length === 0) { %>
+                <h1>No Transaction History Found</h1>
+                <% } else { %>
+                <table class="table table-striped">
+                  <thead>
+                    <tr><th>Payment ID</th><th>Timestamp</th><th>Payment Status</th></tr>
+                  </thead>
+                  <tbody>
+                    <% transaction.forEach(transaction => { %>
+                    <tr>
+                      <td><%= transaction.transaction_id %></td>
+                      <td class="timestamp"><%= transaction.timestamp %></td>
+                      <td><%= transaction.transaction_status %></td>
+                    </tr>
+                    <% }); %>
+                  </tbody>
+                </table>
+                <% } %>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
     </main>
- <% if (message) { %>
+  </div>
+
+  <% if (message) { %>
   <script>
     Swal.fire({
       title: 'Alert',
@@ -218,12 +145,50 @@ const timestamps = document.querySelectorAll(".timestamp");
       icon: 'info',
       confirmButtonText: 'OK'
     });
+    if (window.location.search.includes('message=')) {
+      window.history.replaceState({}, document.title, window.location.pathname);
+    }
   </script>
-<% } %>
+  <% } %>
 
-    <script src="/script.js"></script>
-       <footer class="footer bg-dark text-white text-center py-3" style="position:relative; left:0; bottom:0; width:100%; z-index:1030;">
-  Copyright &#9400; AlgoLeap. All rights reserved. 
-</footer>
-  </body>
+  <script src="/script.js"></script>
+  <script>
+    const timestamps = document.querySelectorAll(".timestamp");
+    timestamps.forEach(item => {
+      const date = new Date(item.innerText);
+      item.innerText = date.toLocaleString("en-US", { timeZone: "Asia/Kolkata" });
+    });
+
+    document.addEventListener("DOMContentLoaded", function () {
+      const status = document.getElementById("status");
+      const alertBox = document.querySelector(".alert.alert-primary");
+      if (status && status.innerText.trim().toLowerCase() === "premium plan") {
+        alertBox && (alertBox.style.display = "none");
+      }
+    });
+
+    const responses = document.querySelectorAll(".response");
+    responses.forEach(item => {
+      const text = item.innerText;
+      if (text.includes("https://res.cloudinary.com/prarthana")) {
+        item.innerHTML = `<a href="${text}" target="_blank">View Response</a>`;
+      } else {
+        item.innerHTML = text;
+      }
+    });
+
+    const badgeStatus = document.querySelector(".badge");
+    if (badgeStatus) {
+      if (badgeStatus.innerText === "enabled") {
+        badgeStatus.style.backgroundColor = "#4CAF50";
+      } else if (badgeStatus.innerText === "disabled") {
+        badgeStatus.style.backgroundColor = "#f44336";
+      }
+    }
+  </script>
+
+  <footer class="footer bg-dark text-white text-center py-3">
+    Copyright AlgoLeap. All rights reserved.
+  </footer>
+</body>
 </html>
