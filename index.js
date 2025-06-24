@@ -18,6 +18,8 @@ import wav from "wav";
 import { createWriteStream } from "fs";
 import fs from "fs";
 import { Readable } from "stream";
+import { ElevenLabsClient, stream } from '@elevenlabs/elevenlabs-js';
+
 import NodeCache from "node-cache";
 
 const app = express();
@@ -25,6 +27,12 @@ dotenv.config();
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+
+const elevenlabs = new ElevenLabsClient({
+  apiKey: process.env.ELEVENLABS_API_KEY,
+});
+
+
 
 const instance = new Razorpay({
   key_id: process.env.RAZORPAY_KEY_ID,
@@ -317,7 +325,7 @@ app.post("/verify-payment", async (req, res) => {
 });
 
 app.post("/genai", async (req, res) => {
-  const { prompt, apiKey } = req.query;
+  const { prompt, apiKey, speaker1, speaker2, voice1, voice2, voice } = req.query;
 
   if (!prompt || !apiKey) {
     return res.status(400).send("Missing prompt or API key");
@@ -399,62 +407,141 @@ app.post("/genai", async (req, res) => {
       return res.send({ url: uploadResult.secure_url });
     }
 
-    if (prompt.includes("audio")) {
-      const fileName = `${crypto.randomUUID()}.wav`;
-      const audioPath = path.join(__dirname, fileName);
+    if (prompt.includes("TTS") || prompt.includes("audio")) {
+  const fileName = `${crypto.randomUUID()}.wav`;
+  const audioPath = path.join(__dirname, fileName);
 
-      const saveWaveFile = (
-        filename,
-        pcmData,
-        channels = 1,
-        rate = 24000,
-        sampleWidth = 2
-      ) => {
-        return new Promise((resolve, reject) => {
-          const writer = new wav.FileWriter(filename, {
-            channels,
-            sampleRate: rate,
-            bitDepth: sampleWidth * 8,
-          });
-          writer.on("finish", resolve);
-          writer.on("error", reject);
-          writer.write(pcmData);
-          writer.end();
-        });
-      };
+  const saveWaveFile = (
+    filename,
+    pcmData,
+    channels = 1,
+    rate = 24000,
+    sampleWidth = 2
+  ) => {
+    return new Promise((resolve, reject) => {
+      const writer = new wav.FileWriter(filename, {
+        channels,
+        sampleRate: rate,
+        bitDepth: sampleWidth * 8,
+      });
+      writer.on("finish", resolve);
+      writer.on("error", reject);
+      writer.write(pcmData);
+      writer.end();
+    });
+  };
 
-      const response = await ai.models.generateContent({
-        model: "gemini-2.5-flash-preview-tts",
-        contents: [{ parts: [{ text: prompt }] }],
-        config: {
-          responseModalities: ["AUDIO"],
-          speechConfig: {
-            voiceConfig: {
-              prebuiltVoiceConfig: { voiceName: "Kore" },
-            },
+  let response; 
+  if (prompt.includes("conversation between")) {
+    response = await ai.models.generateContent({
+      model: "gemini-2.5-flash-preview-tts",
+      contents: [{ parts: [{ text: prompt }] }],
+      config: {
+        responseModalities: ["AUDIO"],
+        speechConfig: {
+          multiSpeakerVoiceConfig: {
+            speakerVoiceConfigs: [
+              {
+                speaker: speaker1,
+                voiceConfig: {
+                  prebuiltVoiceConfig: { voiceName: voice1 },
+                },
+              },
+              {
+                speaker: speaker2,
+                voiceConfig: {
+                  prebuiltVoiceConfig: { voiceName: voice2 },
+                },
+              },
+            ],
           },
         },
-      });
+      },
+    });
+  } else {
+    response = await ai.models.generateContent({
+      model: "gemini-2.5-flash-preview-tts",
+      contents: [{ parts: [{ text: prompt }] }],
+      config: {
+        responseModalities: ["AUDIO"],
+        speechConfig: {
+          voiceConfig: {
+            prebuiltVoiceConfig: { voiceName: voice || "Kore"},
+          },
+        },
+      },
+    });
+  }
 
-      const data =
-        response?.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
-      if (!data) return res.status(500).send("Audio generation failed");
+  const data =
+    response?.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
+  if (!data) return res.status(500).send("Audio generation failed");
 
-      await saveWaveFile(audioPath, Buffer.from(data, "base64"));
+  await saveWaveFile(audioPath, Buffer.from(data, "base64"));
 
-      const uploadResult = await cloudinary.uploader.upload(audioPath, {
-        resource_type: "video",
-        public_id: fileName,
-      });
+  try {
+    const uploadResult = await cloudinary.uploader.upload(audioPath, {
+      resource_type: "video",
+      public_id: fileName,
+    });
 
-      await logPrompt("audio", uploadResult.secure_url);
-      await updateCredits();
+    // Remove local file after upload
+    fs.unlink(audioPath, () => {});
 
-      return res.send({
-        message: "Audio generated",
-        url: uploadResult.secure_url,
-      });
-    }
+    await logPrompt("audio", uploadResult.secure_url);
+    await updateCredits();
+
+    return res.send({
+      message: "Audio generated",
+      url: uploadResult.secure_url,
+    });
+  } catch (err) {
+    fs.unlink(audioPath, () => {});
+    return res.status(500).send("Audio upload failed");
+  }
+}
+
+if (prompt.includes("music")) {
+  try {
+    // Generate music audio (returns a ReadableStream)
+    const audioStream = await elevenlabs.textToSoundEffects.convert({
+      text: prompt,
+    });
+
+    // Save to a file
+    const fileName = `${crypto.randomUUID()}.wav`;
+    const audioPath = path.join(__dirname, fileName);
+    const writer = fs.createWriteStream(audioPath);
+    await new Promise((resolve, reject) => {
+      Readable.fromWeb(audioStream)
+  .pipe(writer)
+  .on("finish", resolve)
+  .on("error", reject);
+    });
+
+    // Upload to Cloudinary
+    const uploadResult = await cloudinary.uploader.upload(audioPath, {
+      resource_type: "video", // or "audio" if your Cloudinary plan supports it
+      public_id: fileName,
+    });
+
+    // Remove local file after upload
+    fs.unlink(audioPath, () => {});
+
+    await logPrompt("music", uploadResult.secure_url);
+    await updateCredits();
+
+    return res.send({
+      message: "Music generated",
+      url: uploadResult.secure_url,
+    });
+  } catch (err) {
+    console.error("Music block error:", err);
+    return res.status(500).send("Music generation failed");
+  }
+}
+
+
 
     if (prompt.includes("video")) {
       let operation = await ai.models.generateVideos({
@@ -500,6 +587,8 @@ app.post("/genai", async (req, res) => {
       });
     }
 
+
+    
     // Default: Text Generation
     const response = await ai.models.generateContent({
       model: "gemini-2.0-flash",
