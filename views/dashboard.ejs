@@ -66,7 +66,18 @@
           <tbody>
             <tr>
               <td><span class="badge-method">POST</span></td>
+              <td>Text, Video, Image</td>
               <td>/genai?apiKey={YOUR_API_KEY}&prompt={YOUR_PROMPT}</td>
+            </tr>
+             <tr>
+              <td><span class="badge-method">POST</span></td>
+              <td>Multi-speaker Audio</td>
+              <td>/genai?apiKey={YOUR_API_KEY}&prompt={YOUR_PROMPT}&speaker1=""&speaker2=""&voice1=""&voice2=""</td>
+            </tr>
+            <tr>
+              <td><span class="badge-method">POST</span></td>
+              <td>Single-speaker Audio</td>
+              <td>/genai?apiKey={YOUR_API_KEY}&prompt={YOUR_PROMPT}&voice=""</td>
             </tr>
           </tbody>
         </table>
