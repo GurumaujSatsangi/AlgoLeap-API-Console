@@ -442,7 +442,10 @@ h2 {
 }
 
 .access-card {
-    padding: 24px;
+    padding: 10px;
+    width:100%;
+    
+
     border: 1px solid #dadce0;
     border-radius: 8px;
     text-decoration: none;

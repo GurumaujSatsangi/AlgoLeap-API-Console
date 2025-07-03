@@ -59,25 +59,33 @@
           <form action="/create-order" method="POST">
             <input type="submit" class="btn btn-primary" value="Upgrade Now" />
           </form>
+           <hr>
         </div>
 
-        <hr>
+       
         <table class="table table-striped">
           <tbody>
             <tr>
               <td><span class="badge-method">POST</span></td>
-              <td>Text, Video, Image</td>
-              <td>/genai?apiKey={YOUR_API_KEY}&prompt={YOUR_PROMPT}</td>
+              <td>Text, Video, Image & Music</td>
+              <td colspan="2">https://algoleap-api-console.onrender.com/genai?apiKey={YOUR API KEY}&prompt={YOUR PROMPT}</td>
             </tr>
              <tr>
               <td><span class="badge-method">POST</span></td>
               <td>Multi-speaker Audio</td>
-              <td>/genai?apiKey={YOUR_API_KEY}&prompt={YOUR_PROMPT}&speaker1=""&speaker2=""&voice1=""&voice2=""</td>
+              <td colspan="2">https://algoleap-api-console.onrender.com/genai?apiKey={YOUR API KEY}&prompt={YOUR PROMPT}&voice1={NAME OF THE VOICE}&voice2={NAME OF THE VOICE}&speaker1={NAME OF THE SPEAKER 1}&speaker2={NAME OF THE SPEAKER 2}</td>
             </tr>
             <tr>
               <td><span class="badge-method">POST</span></td>
               <td>Single-speaker Audio</td>
-              <td>/genai?apiKey={YOUR_API_KEY}&prompt={YOUR_PROMPT}&voice=""</td>
+              <td colspan="2">https://algoleap-api-console.onrender.com/genai?apiKey={YOUR API KEY}&prompt={YOUR PROMPT}&voice={NAME OF THE VOICE}</td>
+            </tr>
+            <tr>
+              <td colspan="4"><b>Few Voice Samples </b>(<a href="https://aistudio.google.com/generate-speech?_gl=1*138trzz*_ga*MTE4MjQzNjMyLjE3NTA2ODM4NzM.*_ga_P1DBVKWT6V*czE3NTE1MDg4OTIkbzckZzEkdDE3NTE1MDg5NjgkajU2JGwwJGgyMzQ0MjY2ODA.">Explore other voice options</a>)</td> </tr>
+<tr><td><b>Charon</b><audio src="charon.wav" controls controlslist="nodownload"></audio></td>
+  <td><b>Kore</b><audio src="kore.wav" controls controlslist="nodownload"></audio></td>
+  <td><b>Puck</b><audio src="puck.wav" controls controlslist="nodownload"></audio></td>
+  <td><b>Zephyr</b><audio src="zephyr.wav" controls controlslist="nodownload"></audio></td>
             </tr>
           </tbody>
         </table>
